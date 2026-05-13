@@ -1,8 +1,8 @@
 # Drone Relay Docker
 
-This is my Docker-based drone relay setup for streaming DJI Fly footage through `linuxbox2`, adding a simple drone/weather overlay, handling BRB fallback, and pushing the final stream to YouTube or Twitch when I want.
+This is my Docker-based drone relay setup for sending DJI Fly footage into `linuxbox2`, adding a simple drone/weather overlay, handling BRB fallback, and pushing the final stream to YouTube or Twitch when I want.
 
-V3 cleans this up so the admin page is more of a field control panel. API keys, stream keys, and Home Assistant tokens live in `.env`, not in the browser.
+The admin page is meant to be a clean field control panel. API keys, stream keys, and Home Assistant tokens live in `.env`, not in the browser.
 
 Target box:
 
@@ -17,6 +17,139 @@ Docker / Portainer friendly
 ```
 
 I already confirmed VAAPI hardware encoding works on this box.
+
+---
+
+## Quick start
+
+### 1. Install or update the app
+
+Run this on `linuxbox2`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | bash
+```
+
+This downloads the public GitHub ZIP and installs everything to:
+
+```text
+/opt/drone-relay
+```
+
+It does **not** use `git clone`, so it should not ask for a GitHub username, password, or token.
+
+### 2. Edit the `.env` file
+
+```bash
+cd /opt/drone-relay
+nano .env
+```
+
+Put my real keys/passwords in there.
+
+At minimum, change these:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-me-now
+FLASK_SECRET_KEY=make-this-long-and-random
+DRONE_API_TOKEN=make-this-long-and-random-too
+```
+
+Add these when I am ready:
+
+```env
+OPENWEATHER_API_KEY=
+
+YOUTUBE_RTMP_URL=rtmps://a.rtmps.youtube.com/live2
+YOUTUBE_STREAM_KEY=
+
+TWITCH_RTMP_URL=rtmp://live.twitch.tv/app
+TWITCH_STREAM_KEY=
+
+HOME_ASSISTANT_URL=http://192.168.1.3:8123
+HOME_ASSISTANT_TOKEN=
+HA_PHONE_ENTITY=device_tracker.s24
+HA_ZIP_OVERRIDE_ENTITY=input_text.drone_overlay_zip
+HA_NOTIFY_SERVICE=notify.mobile_app_s24
+```
+
+### 3. Restart after editing `.env`
+
+```bash
+cd /opt/drone-relay
+docker compose up -d --build
+```
+
+### 4. Open the admin page
+
+```text
+http://192.168.1.17:8589/admin
+```
+
+---
+
+## Future me commands
+
+### Normal install/update
+
+Use this most of the time. It preserves `.env`, uploaded media, settings, logs, and generated overlay files.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | bash
+```
+
+### Update and stop old Drone Relay containers first
+
+Use this if I am testing and want the installer to stop/remove the old Drone Relay containers before starting the updated stack.
+
+This does **not** stop AzuraCast, Portainer, DJMIXHUB, or my other containers.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | CLEAN=1 bash
+```
+
+### Update and reset `.env` from `.env.example`
+
+Use this when `.env.example` changed and I want the newest `.env` layout.
+
+It backs up the old `.env` first.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | RESET_ENV=1 bash
+```
+
+Then edit my keys again:
+
+```bash
+cd /opt/drone-relay
+nano .env
+docker compose up -d --build
+```
+
+### Hard reset for testing
+
+Use this only if the install is messy and I want a clean app folder.
+
+It backs up local data first, stops the old Drone Relay stack, removes `/opt/drone-relay`, reinstalls from GitHub, resets `.env`, and starts fresh.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | RESET_APP=1 RESET_ENV=1 bash
+```
+
+Then edit:
+
+```bash
+cd /opt/drone-relay
+nano .env
+docker compose up -d --build
+```
+
+Backups are stored in:
+
+```text
+~/drone-relay-backups/
+```
 
 ---
 
@@ -58,25 +191,6 @@ End stream if the drone feed does not come back
 
 ---
 
-## V3 changes
-
-V3 is more my style:
-
-```text
-Secrets live in .env
-Cleaner admin page
-No stream keys or API keys in the admin UI
-Dark / light mode toggle at top right
-Better mobile layout
-YouTube and Twitch toggles without exposing keys
-Local Test Mode that never pushes externally
-Test Pattern button that works even when no drone is streaming
-Disable All panic switch
-Home Assistant-ready Enable/Disable endpoints
-```
-
----
-
 ## Ports
 
 These ports avoid AzuraCast, DJMIXHUB, my existing OBS overlay, and Portainer.
@@ -113,73 +227,6 @@ http://192.168.1.17:8889/live/program
 
 ---
 
-## One-line install
-
-This does **not** use `git clone`.
-
-It does **not** ask for a GitHub username or token.
-
-It downloads the public GitHub ZIP and installs it to `/opt/drone-relay`.
-
-Run this on `linuxbox2`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | bash
-```
-
-Then open:
-
-```text
-http://192.168.1.17:8589/admin
-```
-
----
-
-## First-time setup
-
-Edit the `.env` file:
-
-```bash
-cd /opt/drone-relay
-nano .env
-```
-
-Change these right away:
-
-```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=change-me-now
-FLASK_SECRET_KEY=make-this-long-and-random
-DRONE_API_TOKEN=make-this-long-and-random-too
-```
-
-Add secrets here, not in the admin page:
-
-```env
-OPENWEATHER_API_KEY=
-
-YOUTUBE_RTMP_URL=rtmps://a.rtmps.youtube.com/live2
-YOUTUBE_STREAM_KEY=
-
-TWITCH_RTMP_URL=rtmp://live.twitch.tv/app
-TWITCH_STREAM_KEY=
-
-HOME_ASSISTANT_URL=http://192.168.1.3:8123
-HOME_ASSISTANT_TOKEN=
-HA_PHONE_ENTITY=device_tracker.s24
-HA_ZIP_OVERRIDE_ENTITY=input_text.drone_overlay_zip
-HA_NOTIFY_SERVICE=notify.mobile_app_s24
-```
-
-Restart after editing `.env`:
-
-```bash
-cd /opt/drone-relay
-docker compose up -d --build
-```
-
----
-
 ## Admin page
 
 Open:
@@ -205,7 +252,7 @@ Disable All
 
 The dark/light mode toggle is at the top right.
 
-The admin page no longer asks for API keys or stream keys. It only shows whether those keys exist in `.env`.
+The admin page should not ask for API keys or stream keys. It should only show whether those keys exist in `.env`.
 
 ---
 
@@ -516,7 +563,7 @@ action:
 
 ## Test without DJI Fly
 
-The easy way now is the admin page:
+The easy way is the admin page:
 
 ```text
 Test Pattern
