@@ -379,7 +379,7 @@ def start_ffmpeg(kind: str) -> None:
         audio_filter = f"[{audio_index}:a]volume={volume},aresample=44100[aout]"
     elif kind != "test_pattern" and settings.get("drone_audio_enabled", False):
         # Use drone/BRB audio if present; this can fail if no audio exists, so default is off.
-        audio_filter = "[0:a]aresample=44100[aout]"
+        audio_filter = f"[0:a]volume={float(settings.get('drone_volume', 1.0))},aresample=44100[aout]"
     else:
         cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
         audio_filter = f"[{audio_index}:a]aresample=44100[aout]"

@@ -4,14 +4,14 @@ function qs(sel) { return document.querySelector(sel); }
 function qsa(sel) { return [...document.querySelectorAll(sel)]; }
 
 function getTheme() {
-  return localStorage.getItem("droneRelayTheme") || "dark";
+  return localStorage.getItem("droneRelayTheme") || "light";
 }
 
 function applyTheme(theme) {
-  document.documentElement.classList.toggle("light", theme === "light");
+  document.documentElement.classList.toggle("dark", theme === "dark");
   localStorage.setItem("droneRelayTheme", theme);
   const btn = qs("#themeToggle");
-  if (btn) btn.textContent = theme === "light" ? "Dark" : "Light";
+  if (btn) btn.textContent = theme === "dark" ? "Light" : "Dark";
 }
 
 async function api(path, opts = {}) {
@@ -40,6 +40,10 @@ function setClass(id, cls) {
   const el = qs(`#${id}`);
   if (!el) return;
   el.className = "val " + cls;
+}
+
+function pct(v) {
+  return `${Math.round(Number(v || 0) * 100)}%`;
 }
 
 function bindActionButtons() {
@@ -77,6 +81,13 @@ function bindToggleButtons() {
   });
 }
 
+function bindSliders() {
+  const mp3 = qs("#mp3_volume");
+  const drone = qs("#drone_volume");
+  if (mp3) mp3.addEventListener("input", () => setText("mp3VolumeLabel", pct(mp3.value)));
+  if (drone) drone.addEventListener("input", () => setText("droneVolumeLabel", pct(drone.value)));
+}
+
 function renderToggle(btn, on) {
   btn.dataset.value = on ? "true" : "false";
   btn.textContent = on ? "ON" : "OFF";
@@ -88,11 +99,11 @@ async function saveSettings() {
     location_label: qs("#location_label").value,
     fallback_zip: qs("#fallback_zip").value,
     manual_zip: qs("#manual_zip").value,
-    weather_refresh_seconds: Number(qs("#weather_refresh_seconds").value || 30),
     video_bitrate: qs("#video_bitrate").value,
     brb_delay_seconds: Number(qs("#brb_delay_seconds").value || 5),
     end_timeout_seconds: Number(qs("#end_timeout_seconds").value || 300),
     mp3_volume: Number(qs("#mp3_volume").value || 0.35),
+    drone_volume: Number(qs("#drone_volume").value || 1),
     active_audio: qs("#active_audio").value,
     active_brb: qs("#active_brb").value
   };
@@ -124,6 +135,7 @@ async function uploadFile(kind) {
     return;
   }
 
+  input.value = "";
   await refreshStatus();
   alert("Uploaded");
 }
@@ -159,14 +171,21 @@ async function refreshStatus() {
     qsa(`[data-toggle="${key}"]`).forEach(btn => renderToggle(btn, !!val));
   });
 
-  ["location_label", "fallback_zip", "manual_zip", "weather_refresh_seconds", "video_bitrate", "brb_delay_seconds", "end_timeout_seconds", "mp3_volume"].forEach(id => {
+  ["location_label", "fallback_zip", "manual_zip", "video_bitrate", "brb_delay_seconds", "end_timeout_seconds"].forEach(id => {
     const el = qs(`#${id}`);
     if (el && document.activeElement !== el && data.settings[id] !== undefined) el.value = data.settings[id];
   });
 
+  const mp3 = qs("#mp3_volume");
+  if (mp3 && document.activeElement !== mp3) mp3.value = data.settings.mp3_volume ?? 0.35;
+  setText("mp3VolumeLabel", pct(mp3 ? mp3.value : data.settings.mp3_volume));
+
+  const drone = qs("#drone_volume");
+  if (drone && document.activeElement !== drone) drone.value = data.settings.drone_volume ?? 1;
+  setText("droneVolumeLabel", pct(drone ? drone.value : data.settings.drone_volume));
+
   fillSelect("#active_audio", data.audio_files || [], data.settings.active_audio || "");
   fillSelect("#active_brb", data.brb_files || [], data.settings.active_brb || "");
-
   setUrls(data.urls);
 }
 
@@ -193,11 +212,12 @@ document.addEventListener("DOMContentLoaded", () => {
   applyTheme(getTheme());
 
   qs("#themeToggle").addEventListener("click", () => {
-    applyTheme(getTheme() === "light" ? "dark" : "light");
+    applyTheme(getTheme() === "dark" ? "light" : "dark");
   });
 
   bindActionButtons();
   bindToggleButtons();
+  bindSliders();
 
   qs("#saveSettings").addEventListener("click", saveSettings);
   qs("#uploadAudioBtn").addEventListener("click", () => uploadFile("audio"));

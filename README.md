@@ -2,7 +2,7 @@
 
 This is my Docker-based drone relay setup for streaming DJI Fly footage through `linuxbox2`, adding a simple drone/weather overlay, handling BRB fallback, and pushing the final stream to YouTube or Twitch when I want.
 
-This version is cleaned up for testing. The installer removes the old Drone Relay setup, copies a fresh `.env.example` to `.env`, and starts the stack.
+This version is cleaned up for testing. The installer removes the old Drone Relay setup, copies a fresh `.env.example` to `.env`, and starts the stack. The admin page defaults to light mode because I may be using it outside in the sun.
 
 It only touches Drone Relay. It does not stop AzuraCast, Portainer, DJMIXHUB, or my other Docker stacks.
 
@@ -189,6 +189,26 @@ Top weather bar
 Live clock
 Looping background MP3
 BRB video if the drone feed drops
+```
+
+
+---
+
+## Preview note
+
+The admin page uses the MediaMTX WebRTC preview for the browser preview.
+
+That avoids the browser error:
+
+```text
+No video with supported format and MIME type found
+```
+
+For VLC or OBS, use the program output URLs instead:
+
+```text
+http://192.168.1.17:8888/live/program/index.m3u8
+rtmp://192.168.1.17:19350/live/program
 ```
 
 ---
