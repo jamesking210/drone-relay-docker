@@ -25,7 +25,7 @@ if [ -n "$REPO_URL" ]; then
   fi
 else
   if [ ! -f "docker-compose.yml" ]; then
-    echo "Run this script from the project folder, or set REPO_URL=https://github.com/you/drone-relay-docker.git" >&2
+    echo "Run this script from the project folder, or set REPO_URL=https://github.com/jamesking210/drone-relay-docker.git" >&2
     exit 1
   fi
   APP_DIR="$(pwd)"
