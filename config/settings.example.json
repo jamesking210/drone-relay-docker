@@ -57,5 +57,9 @@
     "delay_seconds": 5,
     "end_timeout_seconds": 300,
     "auto_return_live": true
+  },
+  "system": {
+    "enabled": true,
+    "local_test_mode": false
   }
 }

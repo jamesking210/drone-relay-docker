@@ -24,19 +24,53 @@
   </section>
 
   <main class="container">
-    <section class="card controls-card">
-      <h2>Field Controls</h2>
-      <div class="button-grid">
+    <section class="card hero-card">
+      <div class="hero-row">
+        <div>
+          <h2>Control Room</h2>
+          <p class="small" id="summaryLine">Loading status…</p>
+        </div>
+        <div class="pill-row">
+          <span class="pill" id="systemPill">SYSTEM —</span>
+          <span class="pill" id="testPill">TEST —</span>
+        </div>
+      </div>
+
+      <div class="weather-strip">
+        <div>
+          <span class="eyebrow">Current weather overlay</span>
+          <strong id="weatherLine">—</strong>
+          <p class="small" id="weatherMeta">—</p>
+        </div>
+        <button data-action="/api/weather/test">Test Weather</button>
+      </div>
+
+      <div class="button-grid big-actions">
         <button class="primary" data-action="/api/start">Start</button>
-        <button class="danger" data-action="/api/stop">Stop</button>
         <button data-action="/api/brb">Force BRB</button>
         <button data-action="/api/live">Return Live</button>
         <button data-action="/api/stay-live">Stay Live</button>
-        <button data-action="/api/weather/refresh">Refresh Weather</button>
+        <button class="danger" data-action="/api/stop">End Stream</button>
+        <button class="danger-outline" data-action="/api/disable-all">Disable All</button>
       </div>
-      <p class="small" id="weatherLine">Weather line: —</p>
+
       <p class="small error" id="errors"></p>
     </section>
+
+    <details class="card" open>
+      <summary>Quick Modes</summary>
+      <form id="systemSettings" class="settings-form compact-form">
+        <label class="check"><input name="system.enabled" type="checkbox"> Master enabled</label>
+        <label class="check"><input name="system.local_test_mode" type="checkbox"> Local test mode, do not push to YouTube/Twitch</label>
+        <button type="submit">Save Mode Settings</button>
+      </form>
+      <div class="button-grid presets">
+        {% for name, preset in presets.items() %}
+        <button data-action="/api/preset/{{ name }}">{{ preset.label }}</button>
+        {% endfor %}
+      </div>
+      <button data-action="/api/enable-system">Enable System</button>
+    </details>
 
     <details class="card" open>
       <summary>Final Program Preview</summary>
@@ -45,7 +79,7 @@
       </div>
       <div class="link-row">
         <a id="programHlsLink" target="_blank">Open program HLS</a>
-        <a id="programWebrtcLink" target="_blank">Open WebRTC</a>
+        <a id="programWebrtcLink" target="_blank">Open program WebRTC</a>
       </div>
     </details>
 
@@ -56,53 +90,46 @@
       </div>
       <div class="link-row">
         <a id="rawHlsLink" target="_blank">Open raw HLS</a>
-        <a id="rawWebrtcLink" target="_blank">Open WebRTC</a>
+        <a id="rawWebrtcLink" target="_blank">Open raw WebRTC</a>
       </div>
     </details>
 
     <details class="card" open>
-      <summary>Presets</summary>
-      <div class="button-grid presets">
-        {% for name, preset in presets.items() %}
-        <button data-action="/api/preset/{{ name }}">{{ preset.label }}</button>
-        {% endfor %}
-      </div>
-    </details>
-
-    <details class="card" open>
-      <summary>Media Uploads</summary>
-      <div class="two-col">
-        <div>
-          <h3>BRB Video (.mp4)</h3>
-          <form class="upload-form" data-kind="brb">
-            <input type="file" name="file" accept="video/mp4">
-            <button type="submit">Upload MP4</button>
-          </form>
-          <label>Active BRB
-            <select id="activeBrb"></select>
-          </label>
-          <button id="selectBrb">Use Selected BRB</button>
+      <summary>Destinations</summary>
+      <form id="destSettings" class="settings-form">
+        <div class="two-col">
+          <div class="subcard">
+            <h3>YouTube</h3>
+            <label class="check"><input name="destinations.youtube_enabled" type="checkbox"> Enable YouTube output</label>
+            <label>YouTube RTMP URL
+              <input name="destinations.youtube_rtmp_url" placeholder="rtmps://a.rtmps.youtube.com/live2">
+            </label>
+            <label>YouTube Stream Key
+              <input name="destinations.youtube_stream_key" type="password" autocomplete="off" placeholder="leave blank to keep saved key">
+            </label>
+          </div>
+          <div class="subcard">
+            <h3>Twitch</h3>
+            <label class="check"><input name="destinations.twitch_enabled" type="checkbox"> Enable Twitch output</label>
+            <label>Twitch RTMP URL
+              <input name="destinations.twitch_rtmp_url" placeholder="rtmp://live.twitch.tv/app">
+            </label>
+            <label>Twitch Stream Key
+              <input name="destinations.twitch_stream_key" type="password" autocomplete="off" placeholder="leave blank to keep saved key">
+            </label>
+          </div>
         </div>
-        <div>
-          <h3>Background Audio (.mp3)</h3>
-          <form class="upload-form" data-kind="audio">
-            <input type="file" name="file" accept="audio/mpeg">
-            <button type="submit">Upload MP3</button>
-          </form>
-          <label>Active MP3
-            <select id="activeMp3"></select>
-          </label>
-          <button id="selectMp3">Use Selected MP3</button>
-        </div>
-      </div>
+        <button type="submit">Save Destinations</button>
+      </form>
+      <p class="small" id="destinationSummary">—</p>
     </details>
 
     <details class="card" open>
-      <summary>Quick Settings</summary>
-      <form id="quickSettings" class="settings-form">
+      <summary>Weather & Location</summary>
+      <form id="weatherSettings" class="settings-form">
         <div class="two-col">
           <label>OpenWeather API Key
-            <input name="weather.openweather_api_key" placeholder="********">
+            <input name="weather.openweather_api_key" type="password" autocomplete="off" placeholder="leave blank to keep saved key">
           </label>
           <label>Location Label
             <input name="weather.display_label" placeholder="DuPage County, IL">
@@ -113,6 +140,7 @@
           <label>Manual ZIP Override
             <input name="weather.manual_zip" inputmode="numeric">
           </label>
+          <label class="check"><input name="weather.enabled" type="checkbox"> Weather overlay enabled</label>
           <label class="check"><input name="weather.manual_zip_enabled" type="checkbox"> Use manual ZIP override</label>
           <label>Location Mode
             <select name="weather.location_mode">
@@ -126,40 +154,14 @@
           <label>Weather Refresh Seconds
             <input name="weather.refresh_seconds" type="number" min="10" max="600">
           </label>
-          <label>Video Bitrate
-            <input name="output.video_bitrate" placeholder="6500k">
-          </label>
-          <label>BRB Delay Seconds
-            <input name="brb.delay_seconds" type="number" min="0" max="60">
-          </label>
-          <label>End Timeout Seconds
-            <input name="brb.end_timeout_seconds" type="number" min="30" max="3600">
-          </label>
-          <label>MP3 Volume
-            <input name="audio.mp3_volume" type="number" step="0.05" min="0" max="1">
-          </label>
-          <label class="check"><input name="audio.mp3_enabled" type="checkbox"> MP3 audio enabled</label>
-          <label class="check"><input name="audio.drone_audio_enabled" type="checkbox"> Drone audio enabled</label>
+          <label class="check"><input name="weather.show_gusts" type="checkbox"> Show gusts</label>
+          <label class="check"><input name="weather.show_visibility" type="checkbox"> Show visibility</label>
         </div>
         <div class="button-grid">
-          <button class="primary" type="submit">Save Settings</button>
-          <button type="button" data-action="/api/location/reset-phone">Reset to Moving Phone</button>
+          <button type="submit">Save Weather</button>
+          <button type="button" data-action="/api/weather/test">Test Weather</button>
+          <button type="button" data-action="/api/location/reset-phone">Reset to Phone Location</button>
         </div>
-      </form>
-    </details>
-
-    <details class="card">
-      <summary>Destinations</summary>
-      <form id="destSettings" class="settings-form">
-        <div class="two-col">
-          <label class="check"><input name="destinations.youtube_enabled" type="checkbox"> YouTube enabled</label>
-          <label>YouTube RTMP URL<input name="destinations.youtube_rtmp_url"></label>
-          <label>YouTube Stream Key<input name="destinations.youtube_stream_key" placeholder="********"></label>
-          <label class="check"><input name="destinations.twitch_enabled" type="checkbox"> Twitch enabled</label>
-          <label>Twitch RTMP URL<input name="destinations.twitch_rtmp_url"></label>
-          <label>Twitch Stream Key<input name="destinations.twitch_stream_key" placeholder="********"></label>
-        </div>
-        <button class="primary" type="submit">Save Destinations</button>
       </form>
     </details>
 
@@ -167,22 +169,86 @@
       <summary>Home Assistant</summary>
       <form id="haSettings" class="settings-form">
         <div class="two-col">
-          <label class="check"><input name="home_assistant.enabled" type="checkbox"> Home Assistant enabled</label>
-          <label>HA URL<input name="home_assistant.url" placeholder="http://192.168.1.3:8123"></label>
-          <label>HA Token<input name="home_assistant.token" placeholder="********"></label>
-          <label>Phone Entity<input name="home_assistant.phone_entity" placeholder="device_tracker.s24"></label>
-          <label>ZIP Override Entity<input name="home_assistant.zip_override_entity" placeholder="input_text.drone_overlay_zip"></label>
-          <label>Notify Service<input name="home_assistant.notify_service" placeholder="notify.mobile_app_s24"></label>
-          <label class="check"><input name="home_assistant.notifications_enabled" type="checkbox"> Send S24 actionable notifications</label>
+          <label class="check"><input name="home_assistant.enabled" type="checkbox"> Enable Home Assistant</label>
+          <label class="check"><input name="home_assistant.notifications_enabled" type="checkbox"> Enable S24 notifications</label>
+          <label>Home Assistant URL
+            <input name="home_assistant.url" placeholder="http://192.168.1.3:8123">
+          </label>
+          <label>Long-Lived Access Token
+            <input name="home_assistant.token" type="password" autocomplete="off" placeholder="leave blank to keep saved token">
+          </label>
+          <label>Phone Entity
+            <input name="home_assistant.phone_entity" placeholder="device_tracker.s24">
+          </label>
+          <label>ZIP Override Entity
+            <input name="home_assistant.zip_override_entity" placeholder="input_text.drone_overlay_zip">
+          </label>
+          <label>Notify Service
+            <input name="home_assistant.notify_service" placeholder="notify.mobile_app_s24">
+          </label>
         </div>
-        <button class="primary" type="submit">Save Home Assistant</button>
+        <button type="submit">Save Home Assistant</button>
       </form>
     </details>
 
+    <details class="card" open>
+      <summary>Audio & BRB</summary>
+      <form id="audioBrbSettings" class="settings-form">
+        <div class="two-col">
+          <label class="check"><input name="audio.drone_audio_enabled" type="checkbox"> Use drone audio</label>
+          <label class="check"><input name="audio.mp3_enabled" type="checkbox"> Use background MP3</label>
+          <label>MP3 Volume
+            <input name="audio.mp3_volume" type="number" min="0" max="1" step="0.05">
+          </label>
+          <label>BRB Delay Seconds
+            <input name="brb.delay_seconds" type="number" min="0" max="60">
+          </label>
+          <label>Auto-End Timeout Seconds
+            <input name="brb.end_timeout_seconds" type="number" min="30" max="3600">
+          </label>
+          <label class="check"><input name="brb.auto_return_live" type="checkbox"> Auto return live when feed comes back</label>
+          <label>Video Bitrate
+            <input name="output.video_bitrate" placeholder="6500k">
+          </label>
+          <label>Audio Bitrate
+            <input name="output.audio_bitrate" placeholder="160k">
+          </label>
+        </div>
+        <button type="submit">Save Audio / BRB</button>
+      </form>
+    </details>
+
+    <details class="card" open>
+      <summary>Media Uploads</summary>
+      <div class="two-col">
+        <div class="subcard">
+          <h3>BRB Video (.mp4)</h3>
+          <form class="upload-form" data-kind="brb">
+            <input type="file" name="file" accept="video/mp4">
+            <button type="submit">Upload MP4</button>
+          </form>
+          <label>Active BRB
+            <select id="activeBrb"></select>
+          </label>
+          <button id="selectBrb">Use Selected BRB</button>
+        </div>
+        <div class="subcard">
+          <h3>Background Audio (.mp3)</h3>
+          <form class="upload-form" data-kind="audio">
+            <input type="file" name="file" accept="audio/mpeg">
+            <button type="submit">Upload MP3</button>
+          </form>
+          <label>Active MP3
+            <select id="activeMp3"></select>
+          </label>
+          <button id="selectMp3">Use Selected MP3</button>
+        </div>
+      </div>
+    </details>
+
     <details class="card">
-      <summary>Ingest URLs</summary>
+      <summary>Ingest / Links</summary>
       <code id="ingestUrls">Loading…</code>
-      <p class="small">Use RTMP in DJI Fly. Tailscale or public port forwarding can both point to port 19350.</p>
     </details>
   </main>
 

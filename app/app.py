@@ -46,6 +46,7 @@ MEDIAMTX_API = os.environ.get('MEDIAMTX_API', 'http://mediamtx:9997')
 SECRET_KEYS = {'openweather_api_key', 'token', 'youtube_stream_key', 'twitch_stream_key'}
 
 DEFAULT_SETTINGS = {
+    'system': {'enabled': True, 'local_test_mode': False},
     'streaming': False,
     'mode': 'OFFLINE',
     'active_preset': 'good_signal',
@@ -115,7 +116,8 @@ PRESETS = {
         'weather': {'show_gusts': True, 'show_visibility': True},
     },
     'test_mode': {
-        'label': 'Test Mode',
+        'label': 'Local Test Mode',
+        'system': {'local_test_mode': True},
         'streaming': False,
         'audio': {'mp3_enabled': False, 'drone_audio_enabled': False},
     },
@@ -134,6 +136,7 @@ last_timeout_notification_at: Optional[float] = None
 last_weather_refresh = 0.0
 last_weather_error = ''
 last_weather_line = 'WEATHER WAITING FOR CONFIG'
+last_weather_data: Dict[str, Any] = {}
 last_ffmpeg_error = ''
 status = {
     'mode': 'OFFLINE',
@@ -277,7 +280,13 @@ def ffprobe_has_audio(url: str, timeout: int = 5) -> bool:
 
 
 def output_urls(settings: Dict[str, Any]) -> list[str]:
+    # Always publish the final program back into MediaMTX for local preview.
+    # In Local Test Mode we stop here and do NOT push to YouTube/Twitch.
     outs = [PROGRAM_RTMP]
+    system = settings.get('system', {})
+    if system.get('local_test_mode'):
+        return outs
+
     dest = settings.get('destinations', {})
     yt_key = dest.get('youtube_stream_key', '').strip()
     if dest.get('youtube_enabled') and yt_key:
@@ -286,6 +295,23 @@ def output_urls(settings: Dict[str, Any]) -> list[str]:
     if dest.get('twitch_enabled') and tw_key:
         outs.append(dest.get('twitch_rtmp_url', 'rtmp://live.twitch.tv/app').rstrip('/') + '/' + tw_key)
     return outs
+
+
+def destination_summary(settings: Dict[str, Any]) -> Dict[str, Any]:
+    system = settings.get('system', {})
+    dest = settings.get('destinations', {})
+    return {
+        'system_enabled': bool(system.get('enabled', True)),
+        'local_test_mode': bool(system.get('local_test_mode')),
+        'youtube_enabled': bool(dest.get('youtube_enabled')),
+        'youtube_ready': bool(dest.get('youtube_stream_key', '').strip()),
+        'twitch_enabled': bool(dest.get('twitch_enabled')),
+        'twitch_ready': bool(dest.get('twitch_stream_key', '').strip()),
+        'external_outputs_active': bool(not system.get('local_test_mode') and (
+            (dest.get('youtube_enabled') and dest.get('youtube_stream_key', '').strip()) or
+            (dest.get('twitch_enabled') and dest.get('twitch_stream_key', '').strip())
+        )),
+    }
 
 
 def build_tee_arg(settings: Dict[str, Any]) -> str:
@@ -483,6 +509,8 @@ def set_mode(mode: str):
 
 def request_start():
     settings = load_settings()
+    if not settings.get('system', {}).get('enabled', True):
+        raise RuntimeError('Drone Relay is disabled. Turn the master switch back on first.')
     settings['streaming'] = True
     save_settings(settings)
     log_line('events.log', 'Streaming requested ON')
@@ -502,8 +530,36 @@ def request_stop():
     log_line('events.log', 'Streaming stopped')
 
 
+
+def disable_all():
+    global source_missing_since, brb_started_at, end_deadline
+    settings = load_settings()
+    settings.setdefault('system', {})['enabled'] = False
+    settings['streaming'] = False
+    settings['mode'] = 'DISABLED'
+    save_settings(settings)
+    stop_ffmpeg()
+    source_missing_since = None
+    brb_started_at = None
+    end_deadline = None
+    set_mode('DISABLED')
+    log_line('events.log', 'MASTER DISABLE ALL requested')
+
+
+def enable_system():
+    settings = load_settings()
+    settings.setdefault('system', {})['enabled'] = True
+    if settings.get('mode') == 'DISABLED':
+        settings['mode'] = 'OFFLINE'
+    save_settings(settings)
+    set_mode('OFFLINE')
+    log_line('events.log', 'Master system enabled')
+
 def switch_to_live():
     settings = load_settings()
+    if not settings.get('system', {}).get('enabled', True):
+        set_mode('DISABLED')
+        return
     start_process('LIVE', build_live_cmd(settings))
     set_mode('LIVE')
     log_line('events.log', 'Switched to LIVE')
@@ -512,6 +568,9 @@ def switch_to_live():
 def switch_to_brb(notify: bool = True):
     global brb_started_at, end_deadline, last_brb_notification_at
     settings = load_settings()
+    if not settings.get('system', {}).get('enabled', True):
+        set_mode('DISABLED')
+        return
     cmd = build_brb_cmd(settings)
     if cmd:
         start_process('BRB', cmd)
@@ -605,7 +664,7 @@ def resolve_weather_location(settings: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def refresh_weather(force: bool = False):
-    global last_weather_refresh, last_weather_error, last_weather_line
+    global last_weather_refresh, last_weather_error, last_weather_line, last_weather_data
     settings = load_settings()
     weather = settings.get('weather', {})
     if not weather.get('enabled'):
@@ -613,6 +672,7 @@ def refresh_weather(force: bool = False):
         write_weather_line(line)
         last_weather_line = line
         last_weather_error = ''
+        last_weather_data = {'enabled': False, 'line': line}
         last_weather_refresh = time.time()
         return
 
@@ -621,12 +681,13 @@ def refresh_weather(force: bool = False):
     if not force and now - last_weather_refresh < refresh_seconds:
         return
 
-    api_key = weather.get('openweather_api_key', '').strip()
-    if not api_key:
+    api_key = str(weather.get('openweather_api_key', '')).strip()
+    if not api_key or api_key == '********':
         line = 'OPENWEATHER API KEY NEEDED'
         write_weather_line(line)
         last_weather_line = line
-        last_weather_error = 'Missing OpenWeather API key'
+        last_weather_error = 'Missing OpenWeather API key. Re-enter it and hit Save Weather.'
+        last_weather_data = {'enabled': True, 'key_saved': False, 'line': line, 'error': last_weather_error}
         last_weather_refresh = now
         return
 
@@ -639,7 +700,9 @@ def refresh_weather(force: bool = False):
 
     try:
         res = requests.get('https://api.openweathermap.org/data/2.5/weather', params=params, timeout=8)
-        res.raise_for_status()
+        if not res.ok:
+            msg = res.text[:240]
+            raise RuntimeError(f'OpenWeather HTTP {res.status_code}: {msg}')
         data = res.json()
         main = data.get('main', {})
         wind = data.get('wind', {})
@@ -649,6 +712,8 @@ def refresh_weather(force: bool = False):
         feels = round(float(main.get('feels_like', temp)))
         wind_speed = round(float(wind.get('speed', 0)))
         gust = wind.get('gust')
+        humidity = main.get('humidity')
+        pressure = main.get('pressure')
         vis_miles = None
         if data.get('visibility') is not None:
             vis_miles = round(float(data['visibility']) / 1609.344, 1)
@@ -669,13 +734,41 @@ def refresh_weather(force: bool = False):
         write_weather_line(line)
         last_weather_line = line
         last_weather_error = ''
+        last_weather_data = {
+            'enabled': True,
+            'key_saved': True,
+            'location_label': label,
+            'source_location_name': data.get('name'),
+            'location_type': loc.get('type'),
+            'zip': loc.get('zip'),
+            'lat': loc.get('lat'),
+            'lon': loc.get('lon'),
+            'temp': temp,
+            'feels_like': feels,
+            'wind_speed': wind_speed,
+            'wind_gust': None if gust is None else round(float(gust)),
+            'visibility_miles': vis_miles,
+            'humidity': humidity,
+            'pressure': pressure,
+            'condition': condition,
+            'updated': updated,
+            'line': line,
+            'error': '',
+        }
         last_weather_refresh = now
     except Exception as exc:
         last_weather_error = str(exc)
-        line = f"WEATHER ERROR - USING LAST DATA"
+        line = "WEATHER ERROR - USING LAST DATA"
         if not WEATHER_TEXT_PATH.exists():
             write_weather_line(line)
             last_weather_line = line
+        last_weather_data = {
+            **(last_weather_data or {}),
+            'enabled': True,
+            'key_saved': True,
+            'error': last_weather_error,
+            'line': last_weather_line,
+        }
         log_line('events.log', f'Weather error: {exc}')
         last_weather_refresh = now
 
@@ -705,8 +798,14 @@ def update_status(input_connected: bool):
             'auto_end_seconds_remaining': remaining,
             'last_weather_line': last_weather_line,
             'last_weather_error': last_weather_error,
+            'current_weather': last_weather_data,
+            'weather_key_saved': bool(settings.get('weather', {}).get('openweather_api_key', '').strip()),
+            'last_weather_age_seconds': None if not last_weather_refresh else int(time.time() - last_weather_refresh),
             'last_ffmpeg_error': last_ffmpeg_error,
             'active_preset': settings.get('active_preset', 'good_signal'),
+            'destination_summary': destination_summary(settings),
+            'system_enabled': bool(settings.get('system', {}).get('enabled', True)),
+            'local_test_mode': bool(settings.get('system', {}).get('local_test_mode')),
             'updated_at': datetime.now(timezone.utc).isoformat(),
             'media': list_media(),
             'settings': sanitize_settings(settings),
@@ -734,6 +833,13 @@ def watchdog_loop():
     while True:
         try:
             settings = load_settings()
+            if not settings.get('system', {}).get('enabled', True):
+                if ffmpeg_proc and ffmpeg_proc.poll() is None:
+                    stop_ffmpeg()
+                set_mode('DISABLED')
+                update_status(False)
+                time.sleep(3)
+                continue
             refresh_weather(force=False)
             input_connected = ffprobe_input(INPUT_RTMP)
             now = time.time()
@@ -831,6 +937,21 @@ def api_settings():
     return jsonify({'ok': True, 'settings': sanitize_settings(new_settings)})
 
 
+
+@app.route('/api/weather/test', methods=['POST'])
+def api_weather_test():
+    auth = require_api()
+    if auth:
+        return auth
+    refresh_weather(force=True)
+    return jsonify({
+        'ok': not bool(last_weather_error),
+        'weather': last_weather_line,
+        'current_weather': last_weather_data,
+        'error': last_weather_error,
+    })
+
+
 @app.route('/api/upload/<kind>', methods=['POST'])
 def api_upload(kind: str):
     auth = require_api()
@@ -882,7 +1003,29 @@ def api_start():
     auth = require_api()
     if auth:
         return auth
-    request_start()
+    try:
+        request_start()
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+    return jsonify({'ok': True})
+
+
+
+@app.route('/api/disable-all', methods=['POST'])
+def api_disable_all():
+    auth = require_api()
+    if auth:
+        return auth
+    disable_all()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/enable-system', methods=['POST'])
+def api_enable_system():
+    auth = require_api()
+    if auth:
+        return auth
+    enable_system()
     return jsonify({'ok': True})
 
 
