@@ -314,6 +314,34 @@ def active_brb_path(settings: Dict[str, Any]) -> Path | None:
     return p if name and p.exists() else None
 
 
+def has_audio(path: Path | None) -> bool:
+    if not path or not path.exists():
+        return False
+    try:
+        probe = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-select_streams", "a:0",
+                "-show_entries", "stream=codec_type",
+                "-of", "default=nw=1:nk=1",
+                str(path),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=6,
+        )
+        return "audio" in probe.stdout.lower()
+    except Exception:
+        return False
+
+
+def add_silent_audio_input(cmd: List[str]) -> int:
+    idx = sum(1 for i, part in enumerate(cmd) if part == "-i")
+    cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+    return idx
+
+
 def start_ffmpeg(kind: str) -> None:
     global ffmpeg_proc, mode
     settings = load_settings()
@@ -326,14 +354,16 @@ def start_ffmpeg(kind: str) -> None:
     stop_ffmpeg()
     ensure_overlay()
 
-    local_only = kind == "test_pattern"
+    # Offline test modes never push to YouTube/Twitch.
+    local_only = kind in {"test_pattern", "test_brb", "test_audio"}
     out = output_targets(local_only=local_only)
 
     cmd = ["ffmpeg", "-hide_banner", "-nostdin", "-y", "-vaapi_device", "/dev/dri/renderD128"]
+    audio_filters: list[str] = []
+    audio_labels: list[str] = []
 
-    filter_complex = ""
-
-    if kind == "test_pattern":
+    if kind in {"test_pattern", "test_audio"}:
+        # Offline test source: no DJI ingest needed.
         cmd += ["-re", "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30"]
         cmd += ["-loop", "1", "-i", str(WEATHER_PNG)]
         video_filter = (
@@ -345,19 +375,25 @@ def start_ffmpeg(kind: str) -> None:
             "fontcolor=white:fontsize=24:box=1:boxcolor=black@0.35,"
             "format=nv12,hwupload[vout]"
         )
-        audio_index = 2
-    elif kind == "brb":
+
+    elif kind in {"brb", "test_brb"}:
         brb = active_brb_path(settings)
         if brb:
             cmd += ["-stream_loop", "-1", "-re", "-i", str(brb)]
         else:
             cmd += ["-re", "-f", "lavfi", "-i", "color=c=black:s=1920x1080:r=30"]
+            brb = None
         video_filter = (
             "[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,"
             "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,"
             "format=nv12,hwupload[vout]"
         )
-        audio_index = 1
+
+        if settings.get("brb_audio_enabled", False) and has_audio(brb):
+            brb_vol = float(settings.get("brb_volume", 1.0))
+            audio_filters.append(f"[0:a]volume={brb_vol}[brba]")
+            audio_labels.append("[brba]")
+
     else:
         cmd += ["-i", INPUT_RTMP]
         cmd += ["-loop", "1", "-i", str(WEATHER_PNG)]
@@ -370,21 +406,30 @@ def start_ffmpeg(kind: str) -> None:
             "fontcolor=white:fontsize=24:box=1:boxcolor=black@0.35,"
             "format=nv12,hwupload[vout]"
         )
-        audio_index = 2
+        if settings.get("drone_audio_enabled", False):
+            drone_vol = float(settings.get("drone_volume", 1.0))
+            audio_filters.append(f"[0:a]volume={drone_vol}[dronea]")
+            audio_labels.append("[dronea]")
 
-    audio = active_audio_path(settings) if settings.get("mp3_enabled", True) else None
+    # MP3 audio can be tested offline. Test Audio forces the selected MP3 even if MP3 is toggled off.
+    audio = active_audio_path(settings) if (settings.get("mp3_enabled", True) or kind == "test_audio") else None
     if audio:
+        mp3_index = sum(1 for part in cmd if part == "-i")
         cmd += ["-stream_loop", "-1", "-i", str(audio)]
         volume = float(settings.get("mp3_volume", 0.35))
-        audio_filter = f"[{audio_index}:a]volume={volume},aresample=44100[aout]"
-    elif kind != "test_pattern" and settings.get("drone_audio_enabled", False):
-        # Use drone/BRB audio if present; this can fail if no audio exists, so default is off.
-        audio_filter = f"[0:a]volume={float(settings.get('drone_volume', 1.0))},aresample=44100[aout]"
-    else:
-        cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
-        audio_filter = f"[{audio_index}:a]aresample=44100[aout]"
+        audio_filters.append(f"[{mp3_index}:a]volume={volume}[mp3a]")
+        audio_labels.append("[mp3a]")
 
-    filter_complex = video_filter + ";" + audio_filter
+    if len(audio_labels) == 0:
+        silent_index = add_silent_audio_input(cmd)
+        audio_filter = f"[{silent_index}:a]aresample=44100[aout]"
+    elif len(audio_labels) == 1:
+        audio_filter = f"{audio_labels[0]}aresample=44100[aout]"
+    else:
+        joined = "".join(audio_labels)
+        audio_filter = f"{joined}amix=inputs={len(audio_labels)}:duration=longest:dropout_transition=2,aresample=44100[aout]"
+
+    filter_complex = video_filter + ";" + ";".join(audio_filters + [audio_filter])
 
     cmd += [
         "-filter_complex", filter_complex,
@@ -399,8 +444,10 @@ def start_ffmpeg(kind: str) -> None:
         ffmpeg_proc = proc
         mode = {
             "test_pattern": "TEST_PATTERN",
+            "test_brb": "TEST_BRB",
+            "test_audio": "TEST_AUDIO",
             "brb": "BRB",
-            "live": "LIVE"
+            "live": "LIVE",
         }.get(kind, "LIVE")
 
 
@@ -470,6 +517,20 @@ def api_start():
 def api_test_pattern():
     update_settings({"local_test_mode": True, "active_preset": "test_pattern"})
     start_ffmpeg("test_pattern")
+    return jsonify({"ok": True, "mode": mode})
+
+
+@app.route("/api/test-brb", methods=["POST"])
+def api_test_brb():
+    update_settings({"local_test_mode": True, "active_preset": "test_brb"})
+    start_ffmpeg("test_brb")
+    return jsonify({"ok": True, "mode": mode})
+
+
+@app.route("/api/test-audio", methods=["POST"])
+def api_test_audio():
+    update_settings({"local_test_mode": True, "active_preset": "test_audio"})
+    start_ffmpeg("test_audio")
     return jsonify({"ok": True, "mode": mode})
 
 

@@ -38,8 +38,10 @@
       <h2>Stream Control</h2>
       <div class="button-grid main-actions">
         <button class="btn primary" data-action="test-pattern">Test Pattern</button>
+        <button class="btn primary" data-action="test-brb">Test BRB</button>
+        <button class="btn primary" data-action="test-audio">Test MP3</button>
         <button class="btn primary" data-action="start">Start Stream</button>
-        <button class="btn warn" data-action="brb">BRB</button>
+        <button class="btn warn" data-action="brb">BRB Live</button>
         <button class="btn" data-action="live">Return Live</button>
         <button class="btn" data-action="stay-live">Stay Live</button>
         <button class="btn danger" data-action="stop">End Stream</button>
@@ -48,7 +50,7 @@
         <button class="btn" data-action="enable-system">Enable System</button>
         <button class="btn danger" data-action="disable-all">Disable All</button>
       </div>
-      <div class="notice">Default is <b>Light Mode</b> because this will be used outside in the sun. Use the top-right button to switch to dark.</div>
+      <div class="notice"><b>Offline tests:</b> Test Pattern, Test BRB, and Test MP3 are local-only. They do not need DJI Fly ingest and do not push to YouTube/Twitch. Default is <b>Light Mode</b> because this will be used outside in the sun.</div>
     </section>
 
     <section class="card">
@@ -135,6 +137,14 @@
       <section class="card">
         <h2>BRB / Encode</h2>
         <div class="form-row"><label>Active BRB</label><select id="active_brb"></select></div>
+        <div class="toggle-row">
+          <div><strong>BRB MP4 Audio</strong><div class="help">Mute or use the audio inside the BRB video.</div></div>
+          <button class="toggle-btn" data-toggle="brb_audio_enabled">...</button>
+        </div>
+        <div class="slider-row">
+          <label for="brb_volume"><strong>BRB Volume</strong> <span id="brbVolumeLabel">100%</span></label>
+          <input id="brb_volume" type="range" min="0" max="1" step="0.05">
+        </div>
         <div class="form-row"><label>Upload BRB MP4</label><input id="upload_brb" type="file" accept=".mp4,video/mp4"></div>
         <button id="uploadBrbBtn" class="btn">Upload BRB MP4</button>
         <div class="form-row"><label>BRB Delay Seconds</label><input id="brb_delay_seconds" type="number" min="0"></div>

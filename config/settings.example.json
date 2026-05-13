@@ -25,5 +25,9 @@
   "brb_delay_seconds": 5,
   "end_timeout_seconds": 300,
   "home_assistant_enabled": false,
-  "s24_notifications_enabled": false
+  "s24_notifications_enabled": false,
+  "drone_volume": 1.0,
+  "preview_mode": "webrtc",
+  "brb_audio_enabled": false,
+  "brb_volume": 1.0
 }

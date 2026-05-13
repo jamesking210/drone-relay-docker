@@ -84,8 +84,10 @@ function bindToggleButtons() {
 function bindSliders() {
   const mp3 = qs("#mp3_volume");
   const drone = qs("#drone_volume");
+  const brb = qs("#brb_volume");
   if (mp3) mp3.addEventListener("input", () => setText("mp3VolumeLabel", pct(mp3.value)));
   if (drone) drone.addEventListener("input", () => setText("droneVolumeLabel", pct(drone.value)));
+  if (brb) brb.addEventListener("input", () => setText("brbVolumeLabel", pct(brb.value)));
 }
 
 function renderToggle(btn, on) {
@@ -104,6 +106,7 @@ async function saveSettings() {
     end_timeout_seconds: Number(qs("#end_timeout_seconds").value || 300),
     mp3_volume: Number(qs("#mp3_volume").value || 0.35),
     drone_volume: Number(qs("#drone_volume").value || 1),
+    brb_volume: Number(qs("#brb_volume").value || 1),
     active_audio: qs("#active_audio").value,
     active_brb: qs("#active_brb").value
   };
@@ -183,6 +186,10 @@ async function refreshStatus() {
   const drone = qs("#drone_volume");
   if (drone && document.activeElement !== drone) drone.value = data.settings.drone_volume ?? 1;
   setText("droneVolumeLabel", pct(drone ? drone.value : data.settings.drone_volume));
+
+  const brb = qs("#brb_volume");
+  if (brb && document.activeElement !== brb) brb.value = data.settings.brb_volume ?? 1;
+  setText("brbVolumeLabel", pct(brb ? brb.value : data.settings.brb_volume));
 
   fillSelect("#active_audio", data.audio_files || [], data.settings.active_audio || "");
   fillSelect("#active_brb", data.brb_files || [], data.settings.active_brb || "");

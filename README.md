@@ -213,28 +213,54 @@ rtmp://192.168.1.17:19350/live/program
 
 ---
 
-## Test Pattern mode
+## Offline testing with no DJI Fly ingest
 
-If nothing is streaming from DJI Fly, press:
+I can test the whole local output path without sending anything from DJI Fly.
+
+Use these buttons in the admin page:
 
 ```text
 Test Pattern
+Test BRB
+Test MP3
 ```
 
-This starts a local 1080p test pattern with the overlay and clock.
+These are all local-only. They do not push to YouTube or Twitch.
 
-Test Pattern is local-only. It does not push to YouTube or Twitch.
+### Test Pattern
 
-Use it to test:
+Starts a local 1080p test pattern with the weather overlay and clock.
+
+### Test BRB
+
+Plays the selected uploaded BRB `.mp4` locally to the final program output.
+
+This is how I test:
 
 ```text
-FFmpeg
-VAAPI encode
-weather overlay
-clock overlay
-MP3 audio
+BRB video file
+BRB volume / mute
+optional MP3 mix
 final program output URL
-OBS/VLC preview
+VLC/OBS preview
+```
+
+### Test MP3
+
+Starts a local test pattern and forces the selected MP3 to play, even if the MP3 toggle is off.
+
+This is how I test the uploaded background audio without a drone feed.
+
+Output URL for all offline tests:
+
+```text
+http://192.168.1.17:8888/live/program/index.m3u8
+```
+
+RTMP output:
+
+```text
+rtmp://192.168.1.17:19350/live/program
 ```
 
 ---
@@ -269,6 +295,32 @@ Sets mode to DISABLED
 ```
 
 Use Enable System to recover.
+
+---
+
+## BRB audio
+
+The BRB card has its own audio controls:
+
+```text
+BRB MP4 Audio on/off
+BRB Volume slider
+```
+
+This controls the audio inside the uploaded BRB `.mp4` file.
+
+If I want the BRB video silent, turn **BRB MP4 Audio** off.
+
+If I want the BRB video audio quieter, leave it on and lower the BRB Volume slider.
+
+The regular MP3 controls are separate, so I can use:
+
+```text
+BRB video muted + background MP3 on
+BRB video audio on + MP3 off
+BRB video audio mixed with MP3
+Silent BRB
+```
 
 ---
 
