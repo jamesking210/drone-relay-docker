@@ -1,6 +1,8 @@
 # Drone Relay Docker
 
-This is my Docker-based drone relay setup for streaming DJI Fly footage through `linuxbox2`, adding a simple drone/weather overlay, handling BRB fallback, and pushing the final stream to YouTube and optionally Twitch.
+This is my Docker-based drone relay setup for streaming DJI Fly footage through `linuxbox2`, adding a simple drone/weather overlay, handling BRB fallback, and pushing the final stream to YouTube or Twitch when I want.
+
+V3 cleans this up so the admin page is more of a field control panel. API keys, stream keys, and Home Assistant tokens live in `.env`, not in the browser.
 
 Target box:
 
@@ -14,11 +16,13 @@ Intel HD Graphics 530
 Docker / Portainer friendly
 ```
 
-I already confirmed Intel VAAPI hardware encoding works on this box.
+I already confirmed VAAPI hardware encoding works on this box.
 
 ---
 
 ## What this does
+
+Basic flow:
 
 ```text
 DJI Fly app / phone
@@ -27,12 +31,12 @@ linuxbox2
         ↓
 MediaMTX receives the drone stream
         ↓
-FFmpeg builds the final program
+FFmpeg builds the final program feed
         ↓
-Local preview + YouTube/Twitch if enabled
+Local preview + optional YouTube/Twitch output
 ```
 
-The final program can include:
+The final stream can include:
 
 ```text
 Drone video
@@ -54,16 +58,35 @@ End stream if the drone feed does not come back
 
 ---
 
+## V3 changes
+
+V3 is more my style:
+
+```text
+Secrets live in .env
+Cleaner admin page
+No stream keys or API keys in the admin UI
+Dark / light mode toggle at top right
+Better mobile layout
+YouTube and Twitch toggles without exposing keys
+Local Test Mode that never pushes externally
+Test Pattern button that works even when no drone is streaming
+Disable All panic switch
+Home Assistant-ready Enable/Disable endpoints
+```
+
+---
+
 ## Ports
 
-These avoid my AzuraCast, DJMIXHUB, existing OBS overlay, and Portainer ports.
+These ports avoid AzuraCast, DJMIXHUB, my existing OBS overlay, and Portainer.
 
 ```text
 8589   Drone Relay admin page
 19350  DJI Fly RTMP ingest
 8888   HLS preview
 8889   WebRTC preview
-9997   MediaMTX API
+9997   MediaMTX API, bound to localhost on the host
 ```
 
 Local URLs:
@@ -92,7 +115,13 @@ http://192.168.1.17:8889/live/program
 
 ## One-line install
 
-This does **not** use `git clone`, so it should not ask for a GitHub username, password, or token.
+This does **not** use `git clone`.
+
+It does **not** ask for a GitHub username or token.
+
+It downloads the public GitHub ZIP and installs it to `/opt/drone-relay`.
+
+Run this on `linuxbox2`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | bash
@@ -108,12 +137,14 @@ http://192.168.1.17:8589/admin
 
 ## First-time setup
 
+Edit the `.env` file:
+
 ```bash
 cd /opt/drone-relay
 nano .env
 ```
 
-Change these:
+Change these right away:
 
 ```env
 ADMIN_USERNAME=admin
@@ -122,93 +153,132 @@ FLASK_SECRET_KEY=make-this-long-and-random
 DRONE_API_TOKEN=make-this-long-and-random-too
 ```
 
-Restart:
+Add secrets here, not in the admin page:
+
+```env
+OPENWEATHER_API_KEY=
+
+YOUTUBE_RTMP_URL=rtmps://a.rtmps.youtube.com/live2
+YOUTUBE_STREAM_KEY=
+
+TWITCH_RTMP_URL=rtmp://live.twitch.tv/app
+TWITCH_STREAM_KEY=
+
+HOME_ASSISTANT_URL=http://192.168.1.3:8123
+HOME_ASSISTANT_TOKEN=
+HA_PHONE_ENTITY=device_tracker.s24
+HA_ZIP_OVERRIDE_ENTITY=input_text.drone_overlay_zip
+HA_NOTIFY_SERVICE=notify.mobile_app_s24
+```
+
+Restart after editing `.env`:
 
 ```bash
+cd /opt/drone-relay
 docker compose up -d --build
-```
-
----
-
-## Updating later
-
-Run the same one-liner again:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | bash
-```
-
-The installer preserves:
-
-```text
-.env
-config/settings.json
-media/
-logs/
-overlay/weather.png
 ```
 
 ---
 
 ## Admin page
 
-The admin page is designed to work from my phone while I am out flying.
-
-Main features:
+Open:
 
 ```text
-Start stream
-End stream
+http://192.168.1.17:8589/admin
+```
+
+The admin page is meant to be usable from my phone while I am out flying.
+
+Main buttons:
+
+```text
+Start Stream
+Test Pattern
 Force BRB
-Return live
-Stay live
-Disable all
-Enable system
-Local test mode
-Raw drone preview
-Final program preview
-Upload BRB .mp4 files
-Upload background .mp3 files
-Pick active BRB
-Pick active MP3
-Mute drone audio
-Mute MP3 audio
-Change MP3 volume
-Set BRB delay
-Set auto-end timeout
-Save YouTube stream key
-Save Twitch stream key
-Save OpenWeather API key
-Save Home Assistant settings
-Use phone location
-Use ZIP override
-Reset back to phone location
-Apply presets
+Return Live
+Stay Live
+End Stream
+Enable System
+Disable All
+```
+
+The dark/light mode toggle is at the top right.
+
+The admin page no longer asks for API keys or stream keys. It only shows whether those keys exist in `.env`.
+
+---
+
+## Test Pattern mode
+
+This is for testing when nothing is streaming from DJI Fly.
+
+Press:
+
+```text
+Test Pattern
+```
+
+It starts a local 1080p test pattern with the weather overlay and clock.
+
+Important:
+
+```text
+Test Pattern is always local-only.
+It does not push to YouTube.
+It does not push to Twitch.
+It only publishes the final program preview locally.
+```
+
+Use this to test:
+
+```text
+FFmpeg
+VAAPI encode
+weather overlay
+clock overlay
+MP3 audio if selected
+final program preview
 ```
 
 ---
 
-## Important mode switches
+## Local Test Mode
 
-### Local Test Mode
+Local Test Mode blocks external output.
 
-Local Test Mode still builds the final program and publishes it to the local preview path:
+When this is on:
 
 ```text
-rtmp://mediamtx:1935/live/program
+Final program preview works
+YouTube output is blocked
+Twitch output is blocked
 ```
 
-But it does **not** push to YouTube or Twitch.
+This is the safe mode for testing overlays, BRB, audio, and presets.
 
-This is for testing overlays, audio, BRB, and previews without going live.
+---
 
-### Disable All
+## Disable All
 
 Disable All is the panic switch.
 
-It stops FFmpeg, stops streaming, and prevents the watchdog from restarting anything.
+It does this:
 
-It is exposed through the API so Home Assistant can control it later:
+```text
+Stops FFmpeg
+Turns streaming off
+Prevents watchdog restart
+Sets mode to DISABLED
+```
+
+To recover:
+
+```text
+Press Enable System
+```
+
+API endpoints for Home Assistant later:
 
 ```text
 POST /api/disable-all
@@ -217,13 +287,80 @@ POST /api/enable-system
 
 ---
 
-## Weather
+## DJI Fly setup
 
-The weather overlay is generated locally on linuxbox2.
+In DJI Fly, use custom RTMP streaming.
 
-It does not depend on `drone.jimkelsey.com`.
+For local testing:
 
-The top bar shows:
+```text
+rtmp://192.168.1.17:19350/live/drone
+```
+
+For remote use later, use Tailscale or a port-forwarded DNS name.
+
+Tailscale example:
+
+```text
+rtmp://TAILSCALE-IP:19350/live/drone
+```
+
+Public DNS example later:
+
+```text
+rtmp://drone-ingest.example.com:19350/live/drone
+```
+
+---
+
+## YouTube and Twitch
+
+The stream keys live in `.env`:
+
+```env
+YOUTUBE_STREAM_KEY=
+TWITCH_STREAM_KEY=
+```
+
+The admin page has simple toggles for YouTube and Twitch.
+
+If Local Test Mode is on, nothing external is pushed no matter what the toggles say.
+
+The goal is for linuxbox2 to output:
+
+```text
+1920x1080
+30 FPS
+H.264
+AAC audio
+```
+
+If DJI Fly sends 720p because of weak cell service, linuxbox2 will upscale it into the 1080p program canvas.
+
+---
+
+## Weather overlay
+
+OpenWeather key lives in `.env`:
+
+```env
+OPENWEATHER_API_KEY=
+```
+
+The admin page controls what gets displayed:
+
+```text
+Weather on/off
+Location label
+Fallback ZIP
+Manual ZIP override
+Home Assistant phone location mode
+Refresh seconds
+Show gusts
+Show visibility
+```
+
+The overlay can show:
 
 ```text
 Location label
@@ -236,155 +373,81 @@ Conditions
 Clock
 ```
 
-The admin page also shows the current weather line at the top so I can immediately tell if the overlay has good data.
+The clock is drawn live by FFmpeg, so it does not freeze like a screenshot clock.
 
-The OpenWeather call uses the current weather API:
-
-```text
-https://api.openweathermap.org/data/2.5/weather
-```
-
-With either:
-
-```text
-zip=60148,US
-```
-
-or:
-
-```text
-lat=...
-lon=...
-```
-
-The API key is sent as:
-
-```text
-appid=YOUR_KEY
-```
-
-Units are sent as:
-
-```text
-units=imperial
-```
-
-### If weather says API key needed
-
-Re-enter the OpenWeather key in the Weather section and hit **Save Weather**.
-
-The page intentionally leaves secret fields blank after saving, so blank means “keep the saved value.”
-
-Then hit **Test Weather**.
+BRB mode does not use the weather overlay.
 
 ---
 
-## YouTube and Twitch
+## Home Assistant
 
-YouTube and Twitch can both be configured in the admin page.
+Home Assistant secrets live in `.env`:
 
-YouTube default RTMP URL:
-
-```text
-rtmps://a.rtmps.youtube.com/live2
+```env
+HOME_ASSISTANT_URL=http://192.168.1.3:8123
+HOME_ASSISTANT_TOKEN=
+HA_PHONE_ENTITY=device_tracker.s24
+HA_ZIP_OVERRIDE_ENTITY=input_text.drone_overlay_zip
+HA_NOTIFY_SERVICE=notify.mobile_app_s24
 ```
 
-Twitch default RTMP URL:
+The admin page only has simple toggles:
 
 ```text
-rtmp://live.twitch.tv/app
+Use Home Assistant
+S24 Notifications
 ```
 
-If Local Test Mode is on, neither YouTube nor Twitch will receive the stream even if they are enabled.
+The API token for Home Assistant REST commands is:
 
----
-
-## DJI Fly setup
-
-In DJI Fly, use custom RTMP streaming:
-
-```text
-rtmp://192.168.1.17:19350/live/drone
-```
-
-For remote use later, I can use Tailscale or a port-forwarded DNS name.
-
----
-
-## Presets
-
-Presets included:
-
-```text
-Good Signal
-Low Signal
-Music Stream
-Silent Stream
-Windy Day
-Local Test Mode
-```
-
-Suggested use:
-
-```text
-Good Signal:
-DJI sends 1080p
-Output 1080p30
-Higher bitrate
-MP3 on
-
-Low Signal:
-DJI sends 720p
-Output still 1080p30
-Lower bitrate
-
-Music Stream:
-Drone audio muted
-MP3 on
-
-Silent Stream:
-Drone audio muted
-MP3 muted
-
-Windy Day:
-Gusts shown/emphasized
-
-Local Test Mode:
-No YouTube/Twitch push
-Local preview only
+```env
+DRONE_API_TOKEN=
 ```
 
 ---
 
-## Home Assistant API
+## Home Assistant REST commands
 
-Use the `DRONE_API_TOKEN` from `.env`.
-
-Useful endpoints:
-
-```text
-GET  /api/status
-POST /api/start
-POST /api/stop
-POST /api/brb
-POST /api/live
-POST /api/stay-live
-POST /api/disable-all
-POST /api/enable-system
-POST /api/weather/refresh
-POST /api/weather/test
-POST /api/location/reset-phone
-POST /api/preset/good_signal
-POST /api/preset/low_signal
-POST /api/preset/test_mode
-POST /api/audio/mute-mp3
-POST /api/audio/mute-drone
-```
-
-Example Home Assistant REST command:
+Example:
 
 ```yaml
 rest_command:
+  drone_relay_start:
+    url: "http://192.168.1.17:8589/api/start"
+    method: POST
+    headers:
+      X-Drone-Token: !secret drone_relay_api_token
+
+  drone_relay_stop:
+    url: "http://192.168.1.17:8589/api/stop"
+    method: POST
+    headers:
+      X-Drone-Token: !secret drone_relay_api_token
+
+  drone_relay_brb:
+    url: "http://192.168.1.17:8589/api/brb"
+    method: POST
+    headers:
+      X-Drone-Token: !secret drone_relay_api_token
+
+  drone_relay_live:
+    url: "http://192.168.1.17:8589/api/live"
+    method: POST
+    headers:
+      X-Drone-Token: !secret drone_relay_api_token
+
+  drone_relay_stay_live:
+    url: "http://192.168.1.17:8589/api/stay-live"
+    method: POST
+    headers:
+      X-Drone-Token: !secret drone_relay_api_token
+
+  drone_relay_test_pattern:
+    url: "http://192.168.1.17:8589/api/test-pattern"
+    method: POST
+    headers:
+      X-Drone-Token: !secret drone_relay_api_token
+
   drone_relay_disable_all:
     url: "http://192.168.1.17:8589/api/disable-all"
     method: POST
@@ -398,11 +461,70 @@ rest_command:
       X-Drone-Token: !secret drone_relay_api_token
 ```
 
+In `secrets.yaml`:
+
+```yaml
+drone_relay_api_token: your-token-from-env
+```
+
+---
+
+## S24 actionable notifications
+
+The goal:
+
+```text
+Drone feed drops
+BRB starts
+S24 notification appears
+I can tap Stay Live or End Stream
+```
+
+Automation example:
+
+```yaml
+alias: Drone Relay - Handle Notification Actions
+mode: parallel
+
+trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: DRONE_STAY_LIVE
+
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: DRONE_END_STREAM
+
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.event.data.action == 'DRONE_STAY_LIVE' }}"
+        sequence:
+          - service: rest_command.drone_relay_stay_live
+
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger.event.data.action == 'DRONE_END_STREAM' }}"
+        sequence:
+          - service: rest_command.drone_relay_stop
+```
+
 ---
 
 ## Test without DJI Fly
 
-After the stack is running, publish a fake stream from linuxbox2:
+The easy way now is the admin page:
+
+```text
+Test Pattern
+```
+
+That does not require DJI Fly at all.
+
+If I want to test raw ingest anyway, I can publish a fake stream:
 
 ```bash
 ffmpeg -re \
@@ -413,44 +535,86 @@ ffmpeg -re \
   -f flv rtmp://127.0.0.1:19350/live/drone
 ```
 
-Open:
+Then open:
 
 ```text
 http://192.168.1.17:8589/admin
 ```
 
-Turn on Local Test Mode, then press Start.
+Press Start Stream.
 
 ---
 
 ## Useful Docker commands
 
+Start or update:
+
 ```bash
 cd /opt/drone-relay
-
-docker compose ps
-docker compose logs -f drone-relay
-docker compose logs -f mediamtx
-docker compose restart drone-relay
-docker compose down
 docker compose up -d --build
+```
+
+Stop:
+
+```bash
+cd /opt/drone-relay
+docker compose down
+```
+
+Logs:
+
+```bash
+cd /opt/drone-relay
+docker compose logs -f drone-relay
+```
+
+MediaMTX logs:
+
+```bash
+cd /opt/drone-relay
+docker compose logs -f mediamtx
+```
+
+Status:
+
+```bash
+cd /opt/drone-relay
+docker compose ps
 ```
 
 ---
 
 ## Hardware checks
 
+Check Intel GPU device:
+
 ```bash
 ls -lah /dev/dri
-vainfo
-ffmpeg -hide_banner -encoders | grep -E "h264_vaapi|h264_qsv"
 ```
 
 Good result includes:
 
 ```text
 renderD128
+```
+
+Check VAAPI:
+
+```bash
+vainfo
+```
+
+Check FFmpeg encoders:
+
+```bash
+ffmpeg -hide_banner -encoders | grep -E "h264_vaapi|h264_qsv"
+```
+
+Good result includes:
+
+```text
 h264_vaapi
+h264_qsv
 ```
 
 Docker passthrough test:
@@ -460,22 +624,60 @@ docker run --rm -it \
   --device /dev/dri:/dev/dri \
   ubuntu:24.04 \
   bash
+```
 
+Inside the container:
+
+```bash
 ls -lah /dev/dri
 exit
 ```
 
 ---
 
+## Check port conflicts
+
+Before installing:
+
+```bash
+sudo ss -ltnp | grep -E ':8589|:19350|:8888|:8889|:9997'
+```
+
+No output means the ports are clear.
+
+---
+
 ## Do not commit secrets
 
-Do not commit real versions of:
+Do not commit real values in:
 
 ```text
 .env
 config/settings.json
+```
+
+Do not commit real:
+
+```text
 YouTube stream keys
 Twitch stream keys
 OpenWeather API key
 Home Assistant token
+Drone API token
+Admin password
+```
+
+Good files to commit:
+
+```text
+docker-compose.yml
+Dockerfile
+install.sh
+README.md
+.env.example
+config/settings.example.json
+app files
+scripts
+templates
+static files
 ```

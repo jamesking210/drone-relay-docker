@@ -3,13 +3,6 @@ let hlsPlayers = {};
 let formsFilledOnce = false;
 let userEditing = false;
 
-const SECRET_FIELDS = new Set([
-  'weather.openweather_api_key',
-  'home_assistant.token',
-  'destinations.youtube_stream_key',
-  'destinations.twitch_stream_key'
-]);
-
 function api(path, options = {}) {
   return fetch(path, {
     credentials: 'same-origin',
@@ -54,7 +47,7 @@ function setupVideo(id, url) {
     hls.attachMedia(video);
     hlsPlayers[id] = hls;
   } else {
-    video.outerHTML = `<p class="small">HLS preview needs hls.js/browser support. Open the link below in VLC.</p>`;
+    video.outerHTML = `<p class="muted">HLS preview needs hls.js/browser support. Open the link below in VLC.</p>`;
   }
 }
 
@@ -68,13 +61,8 @@ function nestedValue(settings, name) {
 function fillForm(formId, settings) {
   const form = document.getElementById(formId);
   if (!form) return;
-
   [...form.elements].forEach(el => {
     if (!el.name) return;
-    if (SECRET_FIELDS.has(el.name)) {
-      el.value = '';
-      return;
-    }
     const v = nestedValue(settings, el.name);
     if (v === undefined) return;
     if (el.type === 'checkbox') el.checked = !!v;
@@ -84,7 +72,7 @@ function fillForm(formId, settings) {
 
 function fillAllForms(settings) {
   if (userEditing && formsFilledOnce) return;
-  ['systemSettings', 'weatherSettings', 'destSettings', 'haSettings', 'audioBrbSettings'].forEach(id => fillForm(id, settings));
+  ['outputSettings', 'weatherSettings', 'haSettings', 'audioBrbSettings'].forEach(id => fillForm(id, settings));
   formsFilledOnce = true;
 }
 
@@ -92,22 +80,16 @@ function formToNested(form) {
   const out = {};
   [...form.elements].forEach(el => {
     if (!el.name) return;
-
-    // Important: blank secret fields mean "keep the saved value".
-    if (SECRET_FIELDS.has(el.name) && !el.value.trim()) return;
-
     const parts = el.name.split('.');
     let ref = out;
     for (let i = 0; i < parts.length - 1; i++) {
       ref[parts[i]] = ref[parts[i]] || {};
       ref = ref[parts[i]];
     }
-
     let value;
     if (el.type === 'checkbox') value = el.checked;
-    else if (el.type === 'number') value = el.value === '' ? '' : Number(el.value);
+    else if (el.type === 'number' || el.type === 'range') value = el.value === '' ? '' : Number(el.value);
     else value = el.value;
-
     ref[parts[parts.length - 1]] = value;
   });
   return out;
@@ -130,28 +112,53 @@ function fillSelect(id, files, active) {
 function setModeClasses(data) {
   document.body.dataset.mode = data.mode || 'OFFLINE';
   document.body.dataset.system = data.system_enabled ? 'enabled' : 'disabled';
-  document.body.dataset.test = data.local_test_mode ? 'on' : 'off';
+  document.body.dataset.test = data.local_test_mode || data.mode === 'TEST_PATTERN' ? 'on' : 'off';
 }
 
 function summarizeDestinations(data) {
   const d = data.destination_summary || {};
   if (!d.system_enabled) return 'System disabled. Nothing will stream.';
-  if (d.local_test_mode) return 'Local Test Mode is ON. Final program preview only. YouTube/Twitch are blocked.';
+  if (d.local_test_mode || data.mode === 'TEST_PATTERN') return 'Local-only mode. YouTube/Twitch are blocked.';
   const bits = [];
-  bits.push(`YouTube ${d.youtube_enabled ? (d.youtube_ready ? 'ready' : 'enabled, no key') : 'off'}`);
-  bits.push(`Twitch ${d.twitch_enabled ? (d.twitch_ready ? 'ready' : 'enabled, no key') : 'off'}`);
+  bits.push(`YouTube ${d.youtube_enabled ? (d.youtube_ready ? 'ready' : 'enabled, missing .env key') : 'off'}`);
+  bits.push(`Twitch ${d.twitch_enabled ? (d.twitch_ready ? 'ready' : 'enabled, missing .env key') : 'off'}`);
   return bits.join(' · ');
 }
 
 function summarizeWeather(data) {
   const w = data.current_weather || {};
-  if (w.error || data.last_weather_error) {
-    return `Weather error: ${w.error || data.last_weather_error}`;
-  }
+  if (w.error || data.last_weather_error) return `Weather error: ${w.error || data.last_weather_error}`;
   const age = data.last_weather_age_seconds == null ? '—' : `${data.last_weather_age_seconds}s ago`;
-  const key = data.weather_key_saved ? 'key saved' : 'no key';
+  const key = data.weather_key_saved ? 'OpenWeather key in .env' : 'missing OPENWEATHER_API_KEY in .env';
   const src = w.source_location_name ? ` · source: ${w.source_location_name}` : '';
   return `${key} · updated ${age}${src}`;
+}
+
+function boolWord(v) { return v ? 'YES' : 'NO'; }
+
+function updateConfigHints(data) {
+  const c = data.config_summary || {};
+  const d = data.destination_summary || {};
+  setText('youtubeReady', d.youtube_ready ? 'Stream key found in .env.' : 'Missing YOUTUBE_STREAM_KEY in .env.');
+  setText('twitchReady', d.twitch_ready ? 'Stream key found in .env.' : 'Missing TWITCH_STREAM_KEY in .env.');
+  setText('haReady', d.home_assistant_ready ? 'HA token found in .env.' : 'Missing HOME_ASSISTANT_TOKEN in .env.');
+  setText('haNotifyInfo', `Notify service: ${c.ha_notify_service || 'not set'}`);
+
+  const box = [
+    `HA URL set: ${boolWord(c.home_assistant_url)}`,
+    `HA token set: ${boolWord(c.home_assistant_token)}`,
+    `Phone entity: ${c.ha_phone_entity || 'not set'}`,
+    `ZIP helper: ${c.ha_zip_override_entity || 'not set'}`,
+    `Notify service: ${c.ha_notify_service || 'not set'}`,
+    '',
+    `YouTube URL: ${c.youtube_url || 'not set'}`,
+    `YouTube key set: ${boolWord(c.youtube_key)}`,
+    `Twitch URL: ${c.twitch_url || 'not set'}`,
+    `Twitch key set: ${boolWord(c.twitch_key)}`,
+    '',
+    `OpenWeather key set: ${boolWord(c.openweather_key)}`,
+  ].join('\n');
+  setText('haConfigBox', box);
 }
 
 async function refreshStatus(forceForms = false) {
@@ -166,8 +173,8 @@ async function refreshStatus(forceForms = false) {
     setText('weatherLine', data.last_weather_line || '—');
     setText('weatherMeta', summarizeWeather(data));
     setText('destinationSummary', summarizeDestinations(data));
-    setText('systemPill', data.system_enabled ? 'SYSTEM ON' : 'SYSTEM DISABLED');
-    setText('testPill', data.local_test_mode ? 'LOCAL TEST ON' : 'LIVE OUTPUT MODE');
+    setText('systemPill', data.system_enabled ? 'SYSTEM ON' : 'DISABLED');
+    setText('testPill', data.mode === 'TEST_PATTERN' ? 'TEST PATTERN' : (data.local_test_mode ? 'LOCAL TEST ON' : 'EXTERNAL OUTPUTS OK'));
 
     const errs = [data.last_weather_error, data.last_ffmpeg_error].filter(Boolean).join(' | ');
     setText('errors', errs);
@@ -179,6 +186,7 @@ async function refreshStatus(forceForms = false) {
     ].join(' · '));
 
     setModeClasses(data);
+    updateConfigHints(data);
 
     const rawHls = hlsUrl('live/drone');
     const programHls = hlsUrl('live/program');
@@ -207,7 +215,8 @@ async function refreshStatus(forceForms = false) {
       currentSettings?.ingest?.tailscale_url_hint ? `Tailscale ingest: ${currentSettings.ingest.tailscale_url_hint}` : 'Tailscale ingest: add later',
       `Admin: http://${location.hostname}:8589/admin`,
       `Final program preview: ${programHls}`,
-      `Mode: ${data.local_test_mode ? 'LOCAL TEST ONLY' : 'YouTube/Twitch allowed if enabled'}`
+      `Mode: ${data.mode || '—'}`,
+      `External outputs: ${data.local_test_mode || data.mode === 'TEST_PATTERN' ? 'blocked' : 'allowed if enabled and keys exist'}`
     ].join('\n');
     setText('ingestUrls', ingest);
   } catch (err) {
@@ -278,5 +287,17 @@ document.getElementById('selectMp3')?.addEventListener('click', async () => {
   await refreshStatus(true);
 });
 
+function applyTheme(theme) {
+  document.body.classList.toggle('light', theme === 'light');
+  setText('themeToggle', theme === 'light' ? 'Dark' : 'Light');
+  localStorage.setItem('droneRelayTheme', theme);
+}
+
+document.getElementById('themeToggle')?.addEventListener('click', () => {
+  const next = document.body.classList.contains('light') ? 'dark' : 'light';
+  applyTheme(next);
+});
+
+applyTheme(localStorage.getItem('droneRelayTheme') || 'dark');
 refreshStatus(true);
 setInterval(() => refreshStatus(false), 3000);

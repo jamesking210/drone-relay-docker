@@ -43,6 +43,18 @@ INPUT_RTMP = os.environ.get('INPUT_RTMP', 'rtmp://mediamtx:1935/live/drone')
 PROGRAM_RTMP = os.environ.get('PROGRAM_RTMP', 'rtmp://mediamtx:1935/live/program')
 MEDIAMTX_API = os.environ.get('MEDIAMTX_API', 'http://mediamtx:9997')
 
+# V3: secrets and service URLs live in .env, not in the admin page.
+OPENWEATHER_API_KEY = os.environ.get('OPENWEATHER_API_KEY', '').strip()
+YOUTUBE_RTMP_URL = os.environ.get('YOUTUBE_RTMP_URL', 'rtmps://a.rtmps.youtube.com/live2').strip().rstrip('/')
+YOUTUBE_STREAM_KEY = os.environ.get('YOUTUBE_STREAM_KEY', '').strip()
+TWITCH_RTMP_URL = os.environ.get('TWITCH_RTMP_URL', 'rtmp://live.twitch.tv/app').strip().rstrip('/')
+TWITCH_STREAM_KEY = os.environ.get('TWITCH_STREAM_KEY', '').strip()
+HA_URL = os.environ.get('HOME_ASSISTANT_URL', 'http://192.168.1.3:8123').strip().rstrip('/')
+HA_TOKEN = os.environ.get('HOME_ASSISTANT_TOKEN', '').strip()
+HA_PHONE_ENTITY = os.environ.get('HA_PHONE_ENTITY', 'device_tracker.s24').strip()
+HA_ZIP_OVERRIDE_ENTITY = os.environ.get('HA_ZIP_OVERRIDE_ENTITY', 'input_text.drone_overlay_zip').strip()
+HA_NOTIFY_SERVICE = os.environ.get('HA_NOTIFY_SERVICE', 'notify.mobile_app_s24').strip()
+
 SECRET_KEYS = {'openweather_api_key', 'token', 'youtube_stream_key', 'twitch_stream_key'}
 
 DEFAULT_SETTINGS = {
@@ -53,16 +65,11 @@ DEFAULT_SETTINGS = {
     'output': {'width': 1920, 'height': 1080, 'fps': 30, 'video_bitrate': '6500k', 'audio_bitrate': '160k', 'encoder': 'h264_vaapi'},
     'destinations': {
         'youtube_enabled': True,
-        'youtube_rtmp_url': 'rtmps://a.rtmps.youtube.com/live2',
-        'youtube_stream_key': '',
         'twitch_enabled': False,
-        'twitch_rtmp_url': 'rtmp://live.twitch.tv/app',
-        'twitch_stream_key': '',
     },
     'ingest': {'public_url_hint': 'rtmp://192.168.1.17:19350/live/drone', 'tailscale_url_hint': ''},
     'weather': {
         'enabled': True,
-        'openweather_api_key': '',
         'units': 'imperial',
         'refresh_seconds': 30,
         'location_mode': 'fallback_zip',
@@ -77,11 +84,6 @@ DEFAULT_SETTINGS = {
     },
     'home_assistant': {
         'enabled': False,
-        'url': 'http://192.168.1.3:8123',
-        'token': '',
-        'phone_entity': 'device_tracker.s24',
-        'zip_override_entity': 'input_text.drone_overlay_zip',
-        'notify_service': 'notify.mobile_app_s24',
         'notifications_enabled': False,
     },
     'audio': {'drone_audio_enabled': False, 'mp3_enabled': True, 'mp3_volume': 0.35, 'active_mp3': ''},
@@ -279,44 +281,43 @@ def ffprobe_has_audio(url: str, timeout: int = 5) -> bool:
         return False
 
 
-def output_urls(settings: Dict[str, Any]) -> list[str]:
+def output_urls(settings: Dict[str, Any], local_only: bool = False) -> list[str]:
     # Always publish the final program back into MediaMTX for local preview.
-    # In Local Test Mode we stop here and do NOT push to YouTube/Twitch.
+    # Local Test Mode and Test Pattern Mode stop here and do NOT push to YouTube/Twitch.
     outs = [PROGRAM_RTMP]
     system = settings.get('system', {})
-    if system.get('local_test_mode'):
+    if local_only or system.get('local_test_mode'):
         return outs
 
     dest = settings.get('destinations', {})
-    yt_key = dest.get('youtube_stream_key', '').strip()
-    if dest.get('youtube_enabled') and yt_key:
-        outs.append(dest.get('youtube_rtmp_url', 'rtmps://a.rtmps.youtube.com/live2').rstrip('/') + '/' + yt_key)
-    tw_key = dest.get('twitch_stream_key', '').strip()
-    if dest.get('twitch_enabled') and tw_key:
-        outs.append(dest.get('twitch_rtmp_url', 'rtmp://live.twitch.tv/app').rstrip('/') + '/' + tw_key)
+    if dest.get('youtube_enabled') and YOUTUBE_STREAM_KEY:
+        outs.append(YOUTUBE_RTMP_URL + '/' + YOUTUBE_STREAM_KEY)
+    if dest.get('twitch_enabled') and TWITCH_STREAM_KEY:
+        outs.append(TWITCH_RTMP_URL + '/' + TWITCH_STREAM_KEY)
     return outs
 
 
 def destination_summary(settings: Dict[str, Any]) -> Dict[str, Any]:
     system = settings.get('system', {})
     dest = settings.get('destinations', {})
+    youtube_active = bool(dest.get('youtube_enabled') and YOUTUBE_STREAM_KEY)
+    twitch_active = bool(dest.get('twitch_enabled') and TWITCH_STREAM_KEY)
     return {
         'system_enabled': bool(system.get('enabled', True)),
         'local_test_mode': bool(system.get('local_test_mode')),
         'youtube_enabled': bool(dest.get('youtube_enabled')),
-        'youtube_ready': bool(dest.get('youtube_stream_key', '').strip()),
+        'youtube_ready': bool(YOUTUBE_STREAM_KEY),
         'twitch_enabled': bool(dest.get('twitch_enabled')),
-        'twitch_ready': bool(dest.get('twitch_stream_key', '').strip()),
-        'external_outputs_active': bool(not system.get('local_test_mode') and (
-            (dest.get('youtube_enabled') and dest.get('youtube_stream_key', '').strip()) or
-            (dest.get('twitch_enabled') and dest.get('twitch_stream_key', '').strip())
-        )),
+        'twitch_ready': bool(TWITCH_STREAM_KEY),
+        'openweather_ready': bool(OPENWEATHER_API_KEY),
+        'home_assistant_ready': bool(HA_URL and HA_TOKEN),
+        'external_outputs_active': bool(not system.get('local_test_mode') and (youtube_active or twitch_active)),
     }
 
 
-def build_tee_arg(settings: Dict[str, Any]) -> str:
+def build_tee_arg(settings: Dict[str, Any], local_only: bool = False) -> str:
     parts = []
-    for url in output_urls(settings):
+    for url in output_urls(settings, local_only=local_only):
         escaped = url.replace('|', '%7C')
         parts.append(f'[f=flv:onfail=ignore]{escaped}')
     return '|'.join(parts)
@@ -502,6 +503,60 @@ def build_brb_cmd(settings: Dict[str, Any]) -> Optional[list[str]]:
     return cmd
 
 
+
+def build_test_pattern_cmd(settings: Dict[str, Any]) -> list[str]:
+    out = settings.get('output', {})
+    audio = settings.get('audio', {})
+    width = safe_int(out.get('width'), 1920)
+    height = safe_int(out.get('height'), 1080)
+    fps = safe_int(out.get('fps'), 30)
+    video_bitrate = out.get('video_bitrate', '6500k')
+    audio_bitrate = out.get('audio_bitrate', '160k')
+    mp3_path = AUDIO_DIR / audio.get('active_mp3', '')
+    mp3_enabled = bool(audio.get('mp3_enabled')) and bool(audio.get('active_mp3')) and mp3_path.exists()
+
+    cmd = [
+        'ffmpeg', '-hide_banner', '-loglevel', 'info', '-re',
+        '-f', 'lavfi', '-i', f'testsrc2=size={width}x{height}:rate={fps}',
+    ]
+    if mp3_enabled:
+        cmd += ['-stream_loop', '-1', '-i', str(mp3_path)]
+        audio_filter = f'[1:a]volume={safe_float(audio.get("mp3_volume"), 0.35)}[a]'
+        map_audio = '[a]'
+    else:
+        cmd += ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100']
+        audio_filter = ''
+        map_audio = '1:a:0'
+
+    filters = [common_video_filter(settings, with_overlay=True)]
+    if audio_filter:
+        filters.append(audio_filter)
+
+    cmd += ['-filter_complex', ';'.join(filters), '-map', '[v]', '-map', map_audio]
+    cmd += [
+        '-c:v', 'h264_vaapi', '-b:v', video_bitrate, '-maxrate', video_bitrate,
+        '-bufsize', '12000k', '-g', str(fps * 2), '-bf', '0',
+        '-c:a', 'aac', '-b:a', audio_bitrate, '-ar', '44100', '-ac', '2',
+        '-f', 'tee', build_tee_arg(settings, local_only=True)
+    ]
+    return cmd
+
+
+def switch_to_test_pattern():
+    settings = load_settings()
+    if not settings.get('system', {}).get('enabled', True):
+        set_mode('DISABLED')
+        return
+    # Test pattern is always local preview only. It never pushes to YouTube/Twitch.
+    settings['streaming'] = False
+    settings.setdefault('system', {})['local_test_mode'] = True
+    save_settings(settings)
+    refresh_weather(force=True)
+    start_process('TEST_PATTERN', build_test_pattern_cmd(settings))
+    set_mode('TEST_PATTERN')
+    log_line('events.log', 'Started local TEST_PATTERN with overlay')
+
+
 def set_mode(mode: str):
     with state_lock:
         status['mode'] = mode
@@ -607,11 +662,11 @@ def ha_headers(token: str) -> Dict[str, str]:
 def get_ha_state(entity: str) -> Optional[Dict[str, Any]]:
     settings = load_settings()
     ha = settings.get('home_assistant', {})
-    if not ha.get('enabled') or not ha.get('url') or not ha.get('token') or not entity:
+    if not ha.get('enabled') or not HA_URL or not HA_TOKEN or not entity:
         return None
-    url = ha.get('url').rstrip('/') + f'/api/states/{entity}'
+    url = HA_URL + f'/api/states/{entity}'
     try:
-        res = requests.get(url, headers=ha_headers(ha['token']), timeout=5)
+        res = requests.get(url, headers=ha_headers(HA_TOKEN), timeout=5)
         if res.ok:
             return res.json()
     except Exception as exc:
@@ -622,16 +677,16 @@ def get_ha_state(entity: str) -> Optional[Dict[str, Any]]:
 def send_ha_notification(title: str, message: str, tag: str, actions: list[Dict[str, str]]):
     settings = load_settings()
     ha = settings.get('home_assistant', {})
-    if not ha.get('enabled') or not ha.get('notifications_enabled') or not ha.get('token'):
+    if not ha.get('enabled') or not ha.get('notifications_enabled') or not HA_TOKEN or not HA_URL:
         return
-    service = ha.get('notify_service', 'notify.mobile_app_s24')
+    service = HA_NOTIFY_SERVICE
     if '.' not in service:
         return
     domain, svc = service.split('.', 1)
-    url = ha.get('url', '').rstrip('/') + f'/api/services/{domain}/{svc}'
+    url = HA_URL + f'/api/services/{domain}/{svc}'
     payload = {'title': title, 'message': message, 'data': {'tag': tag, 'actions': actions}}
     try:
-        res = requests.post(url, headers=ha_headers(ha['token']), json=payload, timeout=5)
+        res = requests.post(url, headers=ha_headers(HA_TOKEN), json=payload, timeout=5)
         log_line('events.log', f'HA notify {title}: HTTP {res.status_code}')
     except Exception as exc:
         log_line('events.log', f'HA notify error: {exc}')
@@ -647,13 +702,13 @@ def resolve_weather_location(settings: Dict[str, Any]) -> Dict[str, Any]:
 
     mode = weather.get('location_mode')
     if mode in ('home_assistant', 'phone') and ha.get('enabled'):
-        zip_entity = ha.get('zip_override_entity')
+        zip_entity = HA_ZIP_OVERRIDE_ENTITY
         if zip_entity:
             zip_state = get_ha_state(zip_entity)
             z = (zip_state or {}).get('state')
             if z and re.match(r'^\d{5}$', z):
                 return {'type': 'zip', 'zip': z, 'country': country, 'label': weather.get('display_label', '')}
-        phone = get_ha_state(ha.get('phone_entity', ''))
+        phone = get_ha_state(HA_PHONE_ENTITY)
         attrs = (phone or {}).get('attributes', {})
         lat = attrs.get('latitude')
         lon = attrs.get('longitude')
@@ -681,12 +736,12 @@ def refresh_weather(force: bool = False):
     if not force and now - last_weather_refresh < refresh_seconds:
         return
 
-    api_key = str(weather.get('openweather_api_key', '')).strip()
-    if not api_key or api_key == '********':
-        line = 'OPENWEATHER API KEY NEEDED'
+    api_key = OPENWEATHER_API_KEY
+    if not api_key:
+        line = 'OPENWEATHER API KEY NEEDED IN .env'
         write_weather_line(line)
         last_weather_line = line
-        last_weather_error = 'Missing OpenWeather API key. Re-enter it and hit Save Weather.'
+        last_weather_error = 'Missing OPENWEATHER_API_KEY in /opt/drone-relay/.env. Add it, then restart the stack.'
         last_weather_data = {'enabled': True, 'key_saved': False, 'line': line, 'error': last_weather_error}
         last_weather_refresh = now
         return
@@ -799,11 +854,23 @@ def update_status(input_connected: bool):
             'last_weather_line': last_weather_line,
             'last_weather_error': last_weather_error,
             'current_weather': last_weather_data,
-            'weather_key_saved': bool(settings.get('weather', {}).get('openweather_api_key', '').strip()),
+            'weather_key_saved': bool(OPENWEATHER_API_KEY),
             'last_weather_age_seconds': None if not last_weather_refresh else int(time.time() - last_weather_refresh),
             'last_ffmpeg_error': last_ffmpeg_error,
             'active_preset': settings.get('active_preset', 'good_signal'),
             'destination_summary': destination_summary(settings),
+            'config_summary': {
+                'openweather_key': bool(OPENWEATHER_API_KEY),
+                'youtube_key': bool(YOUTUBE_STREAM_KEY),
+                'twitch_key': bool(TWITCH_STREAM_KEY),
+                'home_assistant_token': bool(HA_TOKEN),
+                'home_assistant_url': bool(HA_URL),
+                'ha_phone_entity': HA_PHONE_ENTITY,
+                'ha_zip_override_entity': HA_ZIP_OVERRIDE_ENTITY,
+                'ha_notify_service': HA_NOTIFY_SERVICE,
+                'youtube_url': YOUTUBE_RTMP_URL,
+                'twitch_url': TWITCH_RTMP_URL,
+            },
             'system_enabled': bool(settings.get('system', {}).get('enabled', True)),
             'local_test_mode': bool(settings.get('system', {}).get('local_test_mode')),
             'updated_at': datetime.now(timezone.utc).isoformat(),
@@ -843,6 +910,13 @@ def watchdog_loop():
             refresh_weather(force=False)
             input_connected = ffprobe_input(INPUT_RTMP)
             now = time.time()
+            if status.get('mode') == 'TEST_PATTERN':
+                # Keep local test pattern running until Stop or Disable All is pressed.
+                if not ffmpeg_proc or ffmpeg_proc.poll() is not None:
+                    switch_to_test_pattern()
+                update_status(input_connected)
+                time.sleep(3)
+                continue
             if input_connected:
                 last_source_seen = now
                 source_missing_since = None
@@ -872,7 +946,7 @@ def watchdog_loop():
                             last_timeout_notification_at = now
                         if end_deadline and now >= end_deadline:
                             request_stop()
-            if not settings.get('streaming') and status.get('mode') != 'OFFLINE':
+            if not settings.get('streaming') and status.get('mode') not in ('OFFLINE', 'TEST_PATTERN'):
                 request_stop()
             if settings.get('streaming') and status.get('mode') == 'LIVE' and (not ffmpeg_proc or ffmpeg_proc.poll() is not None) and input_connected:
                 switch_to_live()
@@ -1035,6 +1109,15 @@ def api_stop():
     if auth:
         return auth
     request_stop()
+    return jsonify({'ok': True})
+
+
+@app.route('/api/test-pattern', methods=['POST'])
+def api_test_pattern():
+    auth = require_api()
+    if auth:
+        return auth
+    switch_to_test_pattern()
     return jsonify({'ok': True})
 
 

@@ -12,11 +12,7 @@
   },
   "destinations": {
     "youtube_enabled": true,
-    "youtube_rtmp_url": "rtmps://a.rtmps.youtube.com/live2",
-    "youtube_stream_key": "",
-    "twitch_enabled": false,
-    "twitch_rtmp_url": "rtmp://live.twitch.tv/app",
-    "twitch_stream_key": ""
+    "twitch_enabled": false
   },
   "ingest": {
     "public_url_hint": "rtmp://192.168.1.17:19350/live/drone",
@@ -24,7 +20,6 @@
   },
   "weather": {
     "enabled": true,
-    "openweather_api_key": "",
     "units": "imperial",
     "refresh_seconds": 30,
     "location_mode": "fallback_zip",
@@ -39,11 +34,6 @@
   },
   "home_assistant": {
     "enabled": false,
-    "url": "http://192.168.1.3:8123",
-    "token": "",
-    "phone_entity": "device_tracker.s24",
-    "zip_override_entity": "input_text.drone_overlay_zip",
-    "notify_service": "notify.mobile_app_s24",
     "notifications_enabled": false
   },
   "audio": {
