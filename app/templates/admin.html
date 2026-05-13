@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Drone Relay Admin</title>
+  <link rel="stylesheet" href="/static/admin.css">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Drone Relay</h1>
+      <p id="subtitle">linuxbox2 · 192.168.1.17</p>
+    </div>
+    <a class="logout" href="/logout">Logout</a>
+  </header>
+
+  <section class="status-grid sticky-status">
+    <div class="status-tile"><span>Mode</span><strong id="mode">—</strong></div>
+    <div class="status-tile"><span>Input</span><strong id="input">—</strong></div>
+    <div class="status-tile"><span>Output</span><strong id="output">—</strong></div>
+    <div class="status-tile"><span>Auto End</span><strong id="autoEnd">—</strong></div>
+  </section>
+
+  <main class="container">
+    <section class="card controls-card">
+      <h2>Field Controls</h2>
+      <div class="button-grid">
+        <button class="primary" data-action="/api/start">Start</button>
+        <button class="danger" data-action="/api/stop">Stop</button>
+        <button data-action="/api/brb">Force BRB</button>
+        <button data-action="/api/live">Return Live</button>
+        <button data-action="/api/stay-live">Stay Live</button>
+        <button data-action="/api/weather/refresh">Refresh Weather</button>
+      </div>
+      <p class="small" id="weatherLine">Weather line: —</p>
+      <p class="small error" id="errors"></p>
+    </section>
+
+    <details class="card" open>
+      <summary>Final Program Preview</summary>
+      <div class="preview-wrap">
+        <video id="programPreview" controls muted playsinline></video>
+      </div>
+      <div class="link-row">
+        <a id="programHlsLink" target="_blank">Open program HLS</a>
+        <a id="programWebrtcLink" target="_blank">Open WebRTC</a>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>Raw Drone Feed Preview</summary>
+      <div class="preview-wrap">
+        <video id="rawPreview" controls muted playsinline></video>
+      </div>
+      <div class="link-row">
+        <a id="rawHlsLink" target="_blank">Open raw HLS</a>
+        <a id="rawWebrtcLink" target="_blank">Open WebRTC</a>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>Presets</summary>
+      <div class="button-grid presets">
+        {% for name, preset in presets.items() %}
+        <button data-action="/api/preset/{{ name }}">{{ preset.label }}</button>
+        {% endfor %}
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>Media Uploads</summary>
+      <div class="two-col">
+        <div>
+          <h3>BRB Video (.mp4)</h3>
+          <form class="upload-form" data-kind="brb">
+            <input type="file" name="file" accept="video/mp4">
+            <button type="submit">Upload MP4</button>
+          </form>
+          <label>Active BRB
+            <select id="activeBrb"></select>
+          </label>
+          <button id="selectBrb">Use Selected BRB</button>
+        </div>
+        <div>
+          <h3>Background Audio (.mp3)</h3>
+          <form class="upload-form" data-kind="audio">
+            <input type="file" name="file" accept="audio/mpeg">
+            <button type="submit">Upload MP3</button>
+          </form>
+          <label>Active MP3
+            <select id="activeMp3"></select>
+          </label>
+          <button id="selectMp3">Use Selected MP3</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>Quick Settings</summary>
+      <form id="quickSettings" class="settings-form">
+        <div class="two-col">
+          <label>OpenWeather API Key
+            <input name="weather.openweather_api_key" placeholder="********">
+          </label>
+          <label>Location Label
+            <input name="weather.display_label" placeholder="DuPage County, IL">
+          </label>
+          <label>Fallback ZIP
+            <input name="weather.fallback_zip" inputmode="numeric">
+          </label>
+          <label>Manual ZIP Override
+            <input name="weather.manual_zip" inputmode="numeric">
+          </label>
+          <label class="check"><input name="weather.manual_zip_enabled" type="checkbox"> Use manual ZIP override</label>
+          <label>Location Mode
+            <select name="weather.location_mode">
+              <option value="fallback_zip">Fallback ZIP</option>
+              <option value="home_assistant">Home Assistant phone location</option>
+            </select>
+          </label>
+          <label>Clock Timezone
+            <input name="weather.clock_timezone" placeholder="America/Chicago">
+          </label>
+          <label>Weather Refresh Seconds
+            <input name="weather.refresh_seconds" type="number" min="10" max="600">
+          </label>
+          <label>Video Bitrate
+            <input name="output.video_bitrate" placeholder="6500k">
+          </label>
+          <label>BRB Delay Seconds
+            <input name="brb.delay_seconds" type="number" min="0" max="60">
+          </label>
+          <label>End Timeout Seconds
+            <input name="brb.end_timeout_seconds" type="number" min="30" max="3600">
+          </label>
+          <label>MP3 Volume
+            <input name="audio.mp3_volume" type="number" step="0.05" min="0" max="1">
+          </label>
+          <label class="check"><input name="audio.mp3_enabled" type="checkbox"> MP3 audio enabled</label>
+          <label class="check"><input name="audio.drone_audio_enabled" type="checkbox"> Drone audio enabled</label>
+        </div>
+        <div class="button-grid">
+          <button class="primary" type="submit">Save Settings</button>
+          <button type="button" data-action="/api/location/reset-phone">Reset to Moving Phone</button>
+        </div>
+      </form>
+    </details>
+
+    <details class="card">
+      <summary>Destinations</summary>
+      <form id="destSettings" class="settings-form">
+        <div class="two-col">
+          <label class="check"><input name="destinations.youtube_enabled" type="checkbox"> YouTube enabled</label>
+          <label>YouTube RTMP URL<input name="destinations.youtube_rtmp_url"></label>
+          <label>YouTube Stream Key<input name="destinations.youtube_stream_key" placeholder="********"></label>
+          <label class="check"><input name="destinations.twitch_enabled" type="checkbox"> Twitch enabled</label>
+          <label>Twitch RTMP URL<input name="destinations.twitch_rtmp_url"></label>
+          <label>Twitch Stream Key<input name="destinations.twitch_stream_key" placeholder="********"></label>
+        </div>
+        <button class="primary" type="submit">Save Destinations</button>
+      </form>
+    </details>
+
+    <details class="card">
+      <summary>Home Assistant</summary>
+      <form id="haSettings" class="settings-form">
+        <div class="two-col">
+          <label class="check"><input name="home_assistant.enabled" type="checkbox"> Home Assistant enabled</label>
+          <label>HA URL<input name="home_assistant.url" placeholder="http://192.168.1.3:8123"></label>
+          <label>HA Token<input name="home_assistant.token" placeholder="********"></label>
+          <label>Phone Entity<input name="home_assistant.phone_entity" placeholder="device_tracker.s24"></label>
+          <label>ZIP Override Entity<input name="home_assistant.zip_override_entity" placeholder="input_text.drone_overlay_zip"></label>
+          <label>Notify Service<input name="home_assistant.notify_service" placeholder="notify.mobile_app_s24"></label>
+          <label class="check"><input name="home_assistant.notifications_enabled" type="checkbox"> Send S24 actionable notifications</label>
+        </div>
+        <button class="primary" type="submit">Save Home Assistant</button>
+      </form>
+    </details>
+
+    <details class="card">
+      <summary>Ingest URLs</summary>
+      <code id="ingestUrls">Loading…</code>
+      <p class="small">Use RTMP in DJI Fly. Tailscale or public port forwarding can both point to port 19350.</p>
+    </details>
+  </main>
+
+  <script src="/static/admin.js"></script>
+</body>
+</html>

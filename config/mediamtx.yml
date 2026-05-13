@@ -1,0 +1,48 @@
+# MediaMTX config for Drone Relay
+# Host port mapping is handled in docker-compose.yml.
+
+logLevel: info
+
+# Keep this permissive for v1 because the admin/worker container talks to the API.
+# Do not expose 9997 publicly unless you understand the risk.
+authInternalUsers:
+- user: any
+  pass:
+  ips: []
+  permissions:
+  - action: publish
+    path:
+  - action: read
+    path:
+  - action: playback
+    path:
+  - action: api
+    path:
+  - action: metrics
+    path:
+
+api: true
+apiAddress: :9997
+
+rtmp: true
+rtmpAddress: :1935
+
+hls: true
+hlsAddress: :8888
+hlsAlwaysRemux: true
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsAllowOrigin: '*'
+
+webrtc: true
+webrtcAddress: :8889
+webrtcAllowOrigin: '*'
+
+paths:
+  live/drone:
+    source: publisher
+  live/program:
+    source: publisher
+  all_others:

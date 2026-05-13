@@ -1,0 +1,32 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: drone-mediamtx
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${RTMP_PORT:-19350}:1935"      # DJI Fly RTMP ingest
+      - "${HLS_PORT:-8888}:8888"        # HLS previews
+      - "${WEBRTC_PORT:-8889}:8889"     # WebRTC previews
+      - "127.0.0.1:${MEDIAMTX_API_PORT:-9997}:9997" # API local to host only
+    volumes:
+      - ./config/mediamtx.yml:/mediamtx.yml:ro
+
+  drone-relay:
+    build: ./app
+    container_name: drone-relay
+    restart: unless-stopped
+    depends_on:
+      - mediamtx
+    env_file:
+      - .env
+    ports:
+      - "${ADMIN_PORT:-8589}:8080"
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      - ./config:/app/config
+      - ./media:/app/media
+      - ./overlay:/app/overlay
+      - ./logs:/app/logs

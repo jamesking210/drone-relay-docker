@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Drone Relay Login</title>
+  <link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <h1>Drone Relay</h1>
+    <p>Sign in to control the stream box.</p>
+    {% if error %}<div class="alert danger">{{ error }}</div>{% endif %}
+    <form method="post">
+      <label>Username<input name="username" autocomplete="username" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">Sign In</button>
+    </form>
+  </main>
+</body>
+</html>
