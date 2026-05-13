@@ -2,304 +2,172 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Drone Relay Admin</title>
+  <title>Drone Relay</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/static/admin.css">
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <h1>Drone Relay</h1>
-      <p>linuxbox2 · 192.168.1.17</p>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>Drone Relay</h1>
+        <div class="sub">linuxbox2 · 192.168.1.17 · field control panel</div>
+      </div>
+      <button id="themeToggle" class="theme-btn">Light</button>
     </div>
-    <div class="top-actions">
-      <button id="themeToggle" class="ghost small-btn" type="button">Light</button>
-      <a class="logout" href="/logout">Logout</a>
-    </div>
-  </header>
-
-  <section class="weather-banner">
-    <span>Weather</span>
-    <strong id="weatherLine">Loading weather…</strong>
-    <small id="weatherMeta">—</small>
-  </section>
-
-  <section class="status-grid sticky-status">
-    <div class="status-tile"><span>Mode</span><strong id="mode">—</strong></div>
-    <div class="status-tile"><span>Input</span><strong id="input">—</strong></div>
-    <div class="status-tile"><span>Program</span><strong id="output">—</strong></div>
-    <div class="status-tile"><span>Auto End</span><strong id="autoEnd">—</strong></div>
-  </section>
+  </div>
 
   <main class="container">
-    <section class="card control-card">
-      <div class="section-head">
-        <div>
-          <h2>Field Controls</h2>
-          <p id="summaryLine" class="muted">Loading status…</p>
-        </div>
-        <div class="pill-stack">
-          <span class="pill" id="systemPill">SYSTEM —</span>
-          <span class="pill" id="testPill">TEST —</span>
-        </div>
-      </div>
-
-      <div class="action-grid">
-        <button class="primary" data-action="/api/start">Start Stream</button>
-        <button data-action="/api/test-pattern">Test Pattern</button>
-        <button data-action="/api/brb">Force BRB</button>
-        <button data-action="/api/live">Return Live</button>
-        <button data-action="/api/stay-live">Stay Live</button>
-        <button class="danger" data-action="/api/stop">End Stream</button>
-      </div>
-
-      <div class="panic-row">
-        <button class="safe" data-action="/api/enable-system">Enable System</button>
-        <button class="danger-outline" data-action="/api/disable-all">Disable All</button>
-      </div>
-
-      <p class="error" id="errors"></p>
-    </section>
-
-    <section class="card preview-card" open>
-      <div class="section-head">
-        <div>
-          <h2>Final Program Preview</h2>
-          <p class="muted">This is what the relay is building locally.</p>
-        </div>
-      </div>
-      <div class="preview-wrap">
-        <video id="programPreview" controls muted playsinline></video>
-      </div>
-      <div class="link-row">
-        <a id="programHlsLink" target="_blank">Open HLS</a>
-        <a id="programWebrtcLink" target="_blank">Open WebRTC</a>
-      </div>
-    </section>
-
-    <details class="card">
-      <summary>Raw Drone Feed Preview</summary>
-      <p class="muted">This is exactly what DJI Fly is sending to linuxbox2.</p>
-      <div class="preview-wrap">
-        <video id="rawPreview" controls muted playsinline></video>
-      </div>
-      <div class="link-row">
-        <a id="rawHlsLink" target="_blank">Open raw HLS</a>
-        <a id="rawWebrtcLink" target="_blank">Open raw WebRTC</a>
-      </div>
-    </details>
-
-    <section class="card">
-      <div class="section-head">
-        <div>
-          <h2>Presets</h2>
-          <p class="muted">Fast modes for field use.</p>
-        </div>
-      </div>
-      <div class="preset-grid">
-        {% for name, preset in presets.items() %}
-        <button data-action="/api/preset/{{ name }}">{{ preset.label }}</button>
-        {% endfor %}
-      </div>
+    <section class="weather-line">
+      <div class="label">Current weather overlay line</div>
+      <div class="value" id="weatherLine">Loading...</div>
     </section>
 
     <section class="card">
-      <div class="section-head">
-        <div>
-          <h2>Output Mode</h2>
-          <p class="muted">Stream keys and service URLs live in <code>.env</code>, not here.</p>
-        </div>
+      <h2>Status</h2>
+      <div class="status-grid">
+        <div class="stat"><div class="name">Mode</div><div class="val" id="mode">...</div></div>
+        <div class="stat"><div class="name">Input</div><div class="val" id="input">...</div></div>
+        <div class="stat"><div class="name">System</div><div class="val" id="system">...</div></div>
+        <div class="stat"><div class="name">Preset</div><div class="val" id="preset">...</div></div>
       </div>
-      <form id="outputSettings" class="settings-form">
-        <div class="switch-grid">
-          <label class="switch-row">
-            <input name="system.local_test_mode" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Local Test Mode</strong><small>No YouTube/Twitch push. Local preview only.</small></span>
-          </label>
-          <label class="switch-row">
-            <input name="destinations.youtube_enabled" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>YouTube Output</strong><small id="youtubeReady">—</small></span>
-          </label>
-          <label class="switch-row">
-            <input name="destinations.twitch_enabled" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Twitch Output</strong><small id="twitchReady">—</small></span>
-          </label>
-        </div>
-        <button type="submit">Save Output Mode</button>
-      </form>
-      <p class="muted" id="destinationSummary">—</p>
     </section>
 
-    <section class="card">
-      <div class="section-head">
-        <div>
-          <h2>Weather & Location</h2>
-          <p class="muted">OpenWeather key lives in <code>.env</code>. This only controls what is shown.</p>
-        </div>
-        <button type="button" data-action="/api/weather/test">Test Weather</button>
-      </div>
-      <form id="weatherSettings" class="settings-form">
-        <div class="field-grid">
-          <label>Location Label
-            <input name="weather.display_label" placeholder="DuPage County, IL">
-          </label>
-          <label>Fallback ZIP
-            <input name="weather.fallback_zip" inputmode="numeric" placeholder="60148">
-          </label>
-          <label>Manual ZIP Override
-            <input name="weather.manual_zip" inputmode="numeric" placeholder="Optional">
-          </label>
-          <label>Location Mode
-            <select name="weather.location_mode">
-              <option value="fallback_zip">Fallback ZIP</option>
-              <option value="home_assistant">Home Assistant phone location</option>
-            </select>
-          </label>
-          <label>Refresh Seconds
-            <input name="weather.refresh_seconds" type="number" min="10" max="600">
-          </label>
-          <label>Clock Timezone
-            <input name="weather.clock_timezone" placeholder="America/Chicago">
-          </label>
-        </div>
-        <div class="switch-grid compact">
-          <label class="switch-row">
-            <input name="weather.enabled" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Weather Bar</strong><small>Show weather text on the stream.</small></span>
-          </label>
-          <label class="switch-row">
-            <input name="weather.manual_zip_enabled" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Use Manual ZIP</strong><small>Override phone/fallback location.</small></span>
-          </label>
-          <label class="switch-row">
-            <input name="weather.show_gusts" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Show Gusts</strong><small>Important for drone days.</small></span>
-          </label>
-          <label class="switch-row">
-            <input name="weather.show_visibility" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Show Visibility</strong><small>Visibility in miles.</small></span>
-          </label>
-        </div>
-        <div class="button-row">
-          <button type="submit">Save Weather</button>
-          <button type="button" data-action="/api/location/reset-phone">Reset to Phone</button>
-        </div>
-      </form>
-    </section>
+    <div class="grid">
+      <div>
+        <section class="card">
+          <h2>Stream Control</h2>
+          <div class="button-grid">
+            <button class="btn primary" data-action="start">Start Stream</button>
+            <button class="btn" data-action="test-pattern">Test Pattern</button>
+            <button class="btn warn" data-action="brb">Force BRB</button>
+            <button class="btn" data-action="live">Return Live</button>
+            <button class="btn" data-action="stay-live">Stay Live</button>
+            <button class="btn danger" data-action="stop">End Stream</button>
+            <button class="btn" data-action="enable-system">Enable System</button>
+            <button class="btn danger" data-action="disable-all">Disable All</button>
+          </div>
+          <div class="notice" style="margin-top:10px;">
+            Test Pattern and Local Test Mode are local-only. They do not push to YouTube or Twitch.
+          </div>
+        </section>
 
-    <section class="card">
-      <div class="section-head">
-        <div>
+        <section class="card">
+          <h2>Previews</h2>
+          <div class="preview-grid">
+            <div>
+              <div class="help">Raw drone HLS</div>
+              <div class="preview-box">
+                <video controls muted playsinline src="http://192.168.1.17:8888/live/drone/index.m3u8"></video>
+              </div>
+            </div>
+            <div>
+              <div class="help">Final program HLS</div>
+              <div class="preview-box">
+                <video controls muted playsinline src="http://192.168.1.17:8888/live/program/index.m3u8"></video>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Ingest / Output Notes</h2>
+          <div id="urlList" class="url-list"></div>
+          <div class="notice" style="margin-top:10px;">
+            Use the HLS Program Output URL in VLC or OBS as a Media Source/Browser test. Use the RTMP Program Output URL if you want another encoder/OBS instance to pull from the local program feed.
+          </div>
+        </section>
+      </div>
+
+      <div>
+        <section class="card">
+          <h2>Safe Mode & Destinations</h2>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <strong>Local Test Mode</strong>
+              <div class="help">Blocks YouTube/Twitch output.</div>
+            </div>
+            <button class="toggle-btn" data-toggle="local_test_mode">...</button>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <strong>YouTube Output</strong>
+              <div class="help">Requires YOUTUBE_STREAM_KEY in .env.</div>
+            </div>
+            <button class="toggle-btn" data-toggle="youtube_enabled">...</button>
+          </div>
+
+          <div class="toggle-row">
+            <div class="toggle-label">
+              <strong>Twitch Output</strong>
+              <div class="help">Requires TWITCH_STREAM_KEY in .env.</div>
+            </div>
+            <button class="toggle-btn" data-toggle="twitch_enabled">...</button>
+          </div>
+
+          <div class="status-grid" style="margin-top:10px;">
+            <div class="stat"><div class="name">OpenWeather</div><div class="val" id="owmKey">...</div></div>
+            <div class="stat"><div class="name">YouTube</div><div class="val" id="youtubeKey">...</div></div>
+            <div class="stat"><div class="name">Twitch</div><div class="val" id="twitchKey">...</div></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Weather</h2>
+          <div class="toggle-row">
+            <div class="toggle-label"><strong>Weather Overlay</strong><div class="help">Top bar weather on final program.</div></div>
+            <button class="toggle-btn" data-toggle="weather_enabled">...</button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label"><strong>Show Gusts</strong><div class="help">Good for drone flying.</div></div>
+            <button class="toggle-btn" data-toggle="show_gusts">...</button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label"><strong>Show Visibility</strong><div class="help">Adds VIS value.</div></div>
+            <button class="toggle-btn" data-toggle="show_visibility">...</button>
+          </div>
+
+          <div class="form-row"><label>Location Label</label><input id="location_label"></div>
+          <div class="form-row"><label>Fallback ZIP</label><input id="fallback_zip"></div>
+          <div class="form-row"><label>Manual ZIP</label><input id="manual_zip" placeholder="optional"></div>
+          <div class="form-row"><label>Refresh Seconds</label><input id="weather_refresh_seconds" type="number" min="15"></div>
+
+          <button id="refreshWeatherBtn" class="btn" style="margin-top:10px;">Refresh Weather</button>
+        </section>
+
+        <section class="card">
           <h2>Audio & BRB</h2>
-          <p class="muted">Keep it simple: pick audio, pick BRB, set delays.</p>
-        </div>
-      </div>
-      <form id="audioBrbSettings" class="settings-form">
-        <div class="switch-grid compact">
-          <label class="switch-row">
-            <input name="audio.drone_audio_enabled" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Drone Audio</strong><small>Use audio from the DJI feed if available.</small></span>
-          </label>
-          <label class="switch-row">
-            <input name="audio.mp3_enabled" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Background MP3</strong><small>Loop the selected MP3.</small></span>
-          </label>
-          <label class="switch-row">
-            <input name="brb.auto_return_live" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Auto Return Live</strong><small>Switch back when drone feed returns.</small></span>
-          </label>
-        </div>
-        <div class="field-grid">
-          <label>MP3 Volume
-            <input name="audio.mp3_volume" type="range" min="0" max="1" step="0.05">
-          </label>
-          <label>BRB Delay Seconds
-            <input name="brb.delay_seconds" type="number" min="0" max="60">
-          </label>
-          <label>Auto-End Timeout Seconds
-            <input name="brb.end_timeout_seconds" type="number" min="30" max="3600">
-          </label>
-          <label>Video Bitrate
-            <input name="output.video_bitrate" placeholder="6500k">
-          </label>
-          <label>Audio Bitrate
-            <input name="output.audio_bitrate" placeholder="160k">
-          </label>
-        </div>
-        <button type="submit">Save Audio / BRB</button>
-      </form>
-    </section>
+          <div class="toggle-row">
+            <div class="toggle-label"><strong>Drone Audio</strong><div class="help">Use drone audio if available.</div></div>
+            <button class="toggle-btn" data-toggle="drone_audio_enabled">...</button>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label"><strong>Background MP3</strong><div class="help">Loop selected MP3.</div></div>
+            <button class="toggle-btn" data-toggle="mp3_enabled">...</button>
+          </div>
 
-    <section class="card">
-      <div class="section-head">
-        <div>
-          <h2>Home Assistant</h2>
-          <p class="muted">HA URL, token, phone entity, ZIP helper, and notify service live in <code>.env</code>.</p>
-        </div>
-      </div>
-      <form id="haSettings" class="settings-form">
-        <div class="switch-grid compact">
-          <label class="switch-row">
-            <input name="home_assistant.enabled" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>Use Home Assistant</strong><small id="haReady">—</small></span>
-          </label>
-          <label class="switch-row">
-            <input name="home_assistant.notifications_enabled" type="checkbox">
-            <span class="switch-ui"></span>
-            <span><strong>S24 Notifications</strong><small id="haNotifyInfo">Actionable alerts when BRB starts.</small></span>
-          </label>
-        </div>
-        <button type="submit">Save Home Assistant Toggles</button>
-      </form>
-      <pre class="config-box" id="haConfigBox">Loading HA config…</pre>
-    </section>
+          <div class="form-row"><label>MP3 Volume</label><input id="mp3_volume" type="number" step="0.05" min="0" max="1"></div>
+          <div class="form-row"><label>Active MP3</label><select id="active_audio"></select></div>
+          <div class="form-row"><label>Active BRB</label><select id="active_brb"></select></div>
+          <div class="form-row"><label>BRB Delay Seconds</label><input id="brb_delay_seconds" type="number" min="0"></div>
+          <div class="form-row"><label>Auto-End Seconds</label><input id="end_timeout_seconds" type="number" min="30"></div>
 
-    <section class="card">
-      <div class="section-head">
-        <div>
-          <h2>Media</h2>
-          <p class="muted">Upload and pick the active BRB video and background MP3.</p>
-        </div>
-      </div>
-      <div class="media-grid">
-        <div class="subcard">
-          <h3>BRB Video</h3>
-          <form class="upload-form" data-kind="brb">
-            <input type="file" name="file" accept="video/mp4">
-            <button type="submit">Upload MP4</button>
-          </form>
-          <select id="activeBrb"></select>
-          <button id="selectBrb">Use Selected BRB</button>
-        </div>
-        <div class="subcard">
-          <h3>Background MP3</h3>
-          <form class="upload-form" data-kind="audio">
-            <input type="file" name="file" accept="audio/mpeg">
-            <button type="submit">Upload MP3</button>
-          </form>
-          <select id="activeMp3"></select>
-          <button id="selectMp3">Use Selected MP3</button>
-        </div>
-      </div>
-    </section>
+          <div class="form-row"><label>Upload MP3</label><input id="upload_audio" type="file" accept=".mp3,audio/mpeg"></div>
+          <button id="uploadAudioBtn" class="btn">Upload MP3</button>
 
-    <details class="card">
-      <summary>Ingest URLs & Notes</summary>
-      <pre id="ingestUrls" class="config-box">Loading…</pre>
-      <p class="muted">Secrets are intentionally not shown here. Edit <code>/opt/drone-relay/.env</code> for API keys and stream keys.</p>
-    </details>
+          <div class="form-row" style="margin-top:10px;"><label>Upload BRB MP4</label><input id="upload_brb" type="file" accept=".mp4,video/mp4"></div>
+          <button id="uploadBrbBtn" class="btn">Upload BRB MP4</button>
+        </section>
+
+        <section class="card">
+          <h2>Encoding</h2>
+          <div class="form-row"><label>Video Bitrate</label><input id="video_bitrate" placeholder="6000k"></div>
+          <button id="saveSettings" class="btn primary" style="margin-top:10px;">Save Settings</button>
+        </section>
+      </div>
+    </div>
   </main>
 
   <script src="/static/admin.js"></script>

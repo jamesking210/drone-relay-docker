@@ -6,10 +6,10 @@ services:
     env_file:
       - .env
     ports:
-      - "${RTMP_PORT:-19350}:1935"      # DJI Fly RTMP ingest
-      - "${HLS_PORT:-8888}:8888"        # HLS previews
-      - "${WEBRTC_PORT:-8889}:8889"     # WebRTC previews
-      - "127.0.0.1:${MEDIAMTX_API_PORT:-9997}:9997" # API local to host only
+      - "${RTMP_PORT:-19350}:1935"       # DJI Fly RTMP ingest
+      - "${HLS_PORT:-8888}:8888"         # HLS preview/output
+      - "${WEBRTC_PORT:-8889}:8889"      # WebRTC preview/output
+      - "127.0.0.1:${MEDIAMTX_API_PORT:-9997}:9997" # MediaMTX API, host-local only
     volumes:
       - ./config/mediamtx.yml:/mediamtx.yml:ro
 
