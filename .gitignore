@@ -1,0 +1,12 @@
+.env
+config/settings.json
+logs/*
+!logs/.gitkeep
+overlay/*
+!overlay/.gitkeep
+media/brb/*
+!media/brb/README.txt
+media/audio/*
+!media/audio/README.txt
+__pycache__/
+*.pyc
