@@ -21,10 +21,19 @@ services:
       - mediamtx
     env_file:
       - .env
+    environment:
+      - LIBVA_DRIVER_NAME=iHD
     ports:
       - "${ADMIN_PORT:-8589}:8080"
     devices:
       - /dev/dri:/dev/dri
+    # Numeric groups observed on linuxbox2:
+    # video usually 44, render was 110 in the container test.
+    group_add:
+      - "44"
+      - "110"
+      - "render"
+      - "video"
     volumes:
       - ./config:/app/config
       - ./media:/app/media
