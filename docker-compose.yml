@@ -1,0 +1,39 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: drone-mediamtx
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${RTMP_PORT:-19350}:1935"        # DJI Fly RTMP ingest + local RTMP program output
+      - "${HLS_PORT:-8888}:8888"          # HLS preview/output
+      - "${WEBRTC_PORT:-8889}:8889"       # WebRTC preview/output
+      - "127.0.0.1:${MEDIAMTX_API_PORT:-9997}:9997"
+    volumes:
+      - ./config/mediamtx.yml:/mediamtx.yml:ro
+
+  drone-relay:
+    build: ./app
+    container_name: drone-relay
+    restart: unless-stopped
+    depends_on:
+      - mediamtx
+    env_file:
+      - .env
+    environment:
+      - LIBVA_DRIVER_NAME=iHD
+    ports:
+      - "${ADMIN_PORT:-8589}:8080"
+    devices:
+      - /dev/dri:/dev/dri
+    # linuxbox2 observed groups:
+    # video = 44, render = 110. Numeric only to avoid Docker startup failures.
+    group_add:
+      - "44"
+      - "110"
+    volumes:
+      - ./config:/app/config
+      - ./media:/app/media
+      - ./overlay:/app/overlay
+      - ./logs:/app/logs
