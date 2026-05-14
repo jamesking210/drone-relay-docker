@@ -1,7 +1,7 @@
-Upload the full contents of this folder to:
+Upload the full contents of this folder to your GitHub repo root:
 https://github.com/jamesking210/drone-relay-docker
 
-Then run on linuxbox2:
+Then deploy on linuxbox2:
 
 curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | bash
 cd /opt/drone-relay
@@ -11,13 +11,5 @@ docker compose up -d --build
 Admin:
 http://192.168.1.17:8589/admin
 
-DJI Fly ingest:
-rtmp://192.168.1.17:19350/live/drone
-
-Program output for VLC/OBS:
+Program output for OBS/VLC:
 http://192.168.1.17:8888/live/program/index.m3u8
-rtmp://192.168.1.17:19350/live/program
-
-Browser preview uses WebRTC now, not a direct HLS <video> tag.
-
-V6 adds offline Test BRB, Test MP3, and BRB audio mute/volume controls.

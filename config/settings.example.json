@@ -29,5 +29,11 @@
   "drone_volume": 1.0,
   "preview_mode": "webrtc",
   "brb_audio_enabled": false,
-  "brb_volume": 1.0
+  "brb_volume": 1.0,
+  "program_audio_source": "mp3",
+  "program_audio_enabled": true,
+  "program_audio_volume": 0.35,
+  "scanner_volume": 0.35,
+  "azuracast_volume": 0.35,
+  "dashboard_compact": true
 }

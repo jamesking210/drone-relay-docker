@@ -44,6 +44,8 @@ YOUTUBE_RTMP_URL = os.getenv("YOUTUBE_RTMP_URL", "rtmps://a.rtmps.youtube.com/li
 YOUTUBE_STREAM_KEY = os.getenv("YOUTUBE_STREAM_KEY", "")
 TWITCH_RTMP_URL = os.getenv("TWITCH_RTMP_URL", "rtmp://live.twitch.tv/app")
 TWITCH_STREAM_KEY = os.getenv("TWITCH_STREAM_KEY", "")
+SCANNER_STREAM_URL = os.getenv("SCANNER_STREAM_URL", "")
+AZURACAST_STREAM_URL = os.getenv("AZURACAST_STREAM_URL", "")
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-me")
@@ -92,6 +94,8 @@ def env_status() -> Dict[str, bool]:
         "youtube_key_present": bool(YOUTUBE_STREAM_KEY),
         "twitch_key_present": bool(TWITCH_STREAM_KEY),
         "ha_token_present": bool(os.getenv("HOME_ASSISTANT_TOKEN", "")),
+        "scanner_url_present": bool(SCANNER_STREAM_URL),
+        "azuracast_url_present": bool(AZURACAST_STREAM_URL),
     }
 
 
@@ -103,6 +107,7 @@ def urls() -> Dict[str, str]:
         "Raw WebRTC preview": f"http://{PUBLIC_HOST}:{WEBRTC_PORT}/live/drone",
         "Program WebRTC output": f"http://{PUBLIC_HOST}:{WEBRTC_PORT}/live/program",
         "Program RTMP output": f"rtmp://{PUBLIC_HOST}:{RTMP_PORT}/live/program",
+        "VLC/OBS program URL": f"http://{PUBLIC_HOST}:{HLS_PORT}/live/program/index.m3u8",
         "Admin page": f"http://{PUBLIC_HOST}:{ADMIN_PORT}/admin",
     }
 
@@ -314,6 +319,53 @@ def active_brb_path(settings: Dict[str, Any]) -> Path | None:
     return p if name and p.exists() else None
 
 
+
+def add_network_audio_input(cmd: List[str], url: str) -> int:
+    idx = sum(1 for part in cmd if part == "-i")
+    # These reconnect options help with HTTP/Icecast/AzuraCast/scanner feeds.
+    cmd += [
+        "-reconnect", "1",
+        "-reconnect_streamed", "1",
+        "-reconnect_delay_max", "5",
+        "-i", url,
+    ]
+    return idx
+
+
+def add_program_audio_input(cmd: List[str], settings: Dict[str, Any], kind: str) -> tuple[int | None, float, str]:
+    """Return (input_index, volume, label_name) for the selected program audio source."""
+    if not settings.get("program_audio_enabled", settings.get("mp3_enabled", True)) and kind != "test_audio":
+        return None, 0.0, ""
+
+    source = settings.get("program_audio_source", "mp3")
+    volume = float(settings.get("program_audio_volume", settings.get("mp3_volume", 0.35)))
+
+    if source == "scanner":
+        if not SCANNER_STREAM_URL:
+            log("Scanner audio source selected but SCANNER_STREAM_URL is blank in .env")
+            return None, 0.0, ""
+        return add_network_audio_input(cmd, SCANNER_STREAM_URL), float(settings.get("scanner_volume", volume)), "auxa"
+
+    if source == "azuracast":
+        if not AZURACAST_STREAM_URL:
+            log("AzuraCast audio source selected but AZURACAST_STREAM_URL is blank in .env")
+            return None, 0.0, ""
+        return add_network_audio_input(cmd, AZURACAST_STREAM_URL), float(settings.get("azuracast_volume", volume)), "auxa"
+
+    if source == "none":
+        return None, 0.0, ""
+
+    # Default: uploaded MP3 file.
+    audio = active_audio_path(settings)
+    if audio:
+        idx = sum(1 for part in cmd if part == "-i")
+        cmd += ["-stream_loop", "-1", "-i", str(audio)]
+        return idx, volume, "mp3a"
+
+    log("MP3 audio source selected but no MP3 file is active/uploaded")
+    return None, 0.0, ""
+
+
 def has_audio(path: Path | None) -> bool:
     if not path or not path.exists():
         return False
@@ -411,14 +463,12 @@ def start_ffmpeg(kind: str) -> None:
             audio_filters.append(f"[0:a]volume={drone_vol}[dronea]")
             audio_labels.append("[dronea]")
 
-    # MP3 audio can be tested offline. Test Audio forces the selected MP3 even if MP3 is toggled off.
-    audio = active_audio_path(settings) if (settings.get("mp3_enabled", True) or kind == "test_audio") else None
-    if audio:
-        mp3_index = sum(1 for part in cmd if part == "-i")
-        cmd += ["-stream_loop", "-1", "-i", str(audio)]
-        volume = float(settings.get("mp3_volume", 0.35))
-        audio_filters.append(f"[{mp3_index}:a]volume={volume}[mp3a]")
-        audio_labels.append("[mp3a]")
+    # Program audio can be uploaded MP3, scanner URL, AzuraCast URL, or none.
+    # Test Audio forces a local-only test of whatever audio source is selected.
+    prog_idx, prog_vol, prog_label = add_program_audio_input(cmd, settings, kind)
+    if prog_idx is not None and prog_label:
+        audio_filters.append(f"[{prog_idx}:a]volume={prog_vol}[{prog_label}]")
+        audio_labels.append(f"[{prog_label}]")
 
     if len(audio_labels) == 0:
         silent_index = add_silent_audio_input(cmd)

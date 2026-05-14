@@ -11,7 +11,7 @@
     <div class="topbar-inner">
       <div class="brand">
         <h1>Drone Relay</h1>
-        <div class="sub">linuxbox2 · field control</div>
+        <div class="sub">linuxbox2 · field dashboard</div>
       </div>
       <button id="themeToggle" class="theme-btn">Dark</button>
     </div>
@@ -19,10 +19,8 @@
 
   <main class="container">
     <section class="hero">
-      <div>
-        <div class="eyebrow">Current overlay</div>
-        <div id="weatherLine" class="weather-text">Loading weather...</div>
-      </div>
+      <div class="eyebrow">Current overlay line</div>
+      <div id="weatherLine" class="weather-text">Loading weather...</div>
     </section>
 
     <section class="card status-card">
@@ -30,126 +28,100 @@
         <div class="stat"><div class="name">Mode</div><div class="val" id="mode">...</div></div>
         <div class="stat"><div class="name">Input</div><div class="val" id="input">...</div></div>
         <div class="stat"><div class="name">System</div><div class="val" id="system">...</div></div>
-        <div class="stat"><div class="name">Preset</div><div class="val" id="preset">...</div></div>
+        <div class="stat"><div class="name">Audio</div><div class="val" id="audioSourceStat">...</div></div>
       </div>
     </section>
 
     <section class="card control-card">
-      <h2>Stream Control</h2>
-      <div class="button-grid main-actions">
+      <h2>Dry Tests</h2>
+      <div class="button-grid dry-actions">
         <button class="btn primary" data-action="test-pattern">Test Pattern</button>
         <button class="btn primary" data-action="test-brb">Test BRB</button>
-        <button class="btn primary" data-action="test-audio">Test MP3</button>
-        <button class="btn primary" data-action="start">Start Stream</button>
+        <button class="btn primary" data-action="test-audio">Test Audio</button>
+      </div>
+      <div class="notice">Dry tests are local-only. No DJI ingest needed. No YouTube. No Twitch. Use these to test the overlay, BRB video, MP3/scanner/AzuraCast audio, and local output URLs.</div>
+
+      <h2 class="section-gap">Live Control</h2>
+      <div class="button-grid live-actions">
+        <button class="btn" data-action="start">Start Stream</button>
         <button class="btn warn" data-action="brb">BRB Live</button>
         <button class="btn" data-action="live">Return Live</button>
         <button class="btn" data-action="stay-live">Stay Live</button>
         <button class="btn danger" data-action="stop">End Stream</button>
-      </div>
-      <div class="button-grid small-actions">
-        <button class="btn" data-action="enable-system">Enable System</button>
         <button class="btn danger" data-action="disable-all">Disable All</button>
       </div>
-      <div class="notice"><b>Offline tests:</b> Test Pattern, Test BRB, and Test MP3 are local-only. They do not need DJI Fly ingest and do not push to YouTube/Twitch. Default is <b>Light Mode</b> because this will be used outside in the sun.</div>
+      <button class="btn enable-btn" data-action="enable-system">Enable System</button>
     </section>
 
-    <section class="card">
+    <section class="card preview-card">
       <div class="card-head">
-        <h2>Program Preview</h2>
-        <span class="pill">WebRTC browser preview</span>
+        <h2>Previews</h2>
+        <button class="btn small" id="reloadPreviews">Reload Previews</button>
       </div>
-      <div class="preview-box">
-        <iframe id="programFrame" title="Program WebRTC Preview" src="http://192.168.1.17:8889/live/program" allow="autoplay; fullscreen; picture-in-picture"></iframe>
+      <div class="preview-grid">
+        <div>
+          <div class="preview-title">Final Program</div>
+          <iframe id="programFrame" title="Program WebRTC Preview" src="http://192.168.1.17:8889/live/program" allow="autoplay; fullscreen; picture-in-picture"></iframe>
+          <a class="open-link" href="http://192.168.1.17:8889/live/program" target="_blank">Open program preview</a>
+        </div>
+        <div>
+          <div class="preview-title">Raw Drone Feed</div>
+          <iframe id="rawFrame" title="Raw Drone WebRTC Preview" src="http://192.168.1.17:8889/live/drone" allow="autoplay; fullscreen; picture-in-picture"></iframe>
+          <a class="open-link" href="http://192.168.1.17:8889/live/drone" target="_blank">Open raw preview</a>
+        </div>
       </div>
-      <div class="notice">The old HTML video preview caused “No video with supported format / MIME type found.” This preview uses the MediaMTX WebRTC page instead. For VLC/OBS, use the output URLs below.</div>
+      <div class="notice">If the embedded preview is blank, press a dry-test button first, then reload previews. VLC/OBS URLs are below.</div>
     </section>
 
-    <section class="card">
+    <section class="card urls-card">
       <h2>Ingest / Output URLs</h2>
       <div id="urlList" class="url-list"></div>
     </section>
 
     <div class="grid">
       <section class="card">
-        <h2>Modes</h2>
-        <div class="toggle-row">
-          <div><strong>Local Test Mode</strong><div class="help">Blocks YouTube/Twitch. Best default while testing.</div></div>
-          <button class="toggle-btn" data-toggle="local_test_mode">...</button>
-        </div>
-        <div class="toggle-row">
-          <div><strong>YouTube</strong><div class="help">Uses key from .env.</div></div>
-          <button class="toggle-btn" data-toggle="youtube_enabled">...</button>
-        </div>
-        <div class="toggle-row">
-          <div><strong>Twitch</strong><div class="help">Uses key from .env.</div></div>
-          <button class="toggle-btn" data-toggle="twitch_enabled">...</button>
-        </div>
+        <h2>Mode</h2>
+        <div class="toggle-row"><div><strong>Local Test Mode</strong><div class="help">Blocks YouTube/Twitch. Keep this ON while testing.</div></div><button class="toggle-btn" data-toggle="local_test_mode">...</button></div>
+        <div class="toggle-row"><div><strong>YouTube</strong><div class="help">Uses YOUTUBE_STREAM_KEY in .env.</div></div><button class="toggle-btn" data-toggle="youtube_enabled">...</button></div>
+        <div class="toggle-row"><div><strong>Twitch</strong><div class="help">Uses TWITCH_STREAM_KEY in .env.</div></div><button class="toggle-btn" data-toggle="twitch_enabled">...</button></div>
         <div class="key-row">
           <div class="stat"><div class="name">OpenWeather</div><div class="val" id="owmKey">...</div></div>
-          <div class="stat"><div class="name">YouTube</div><div class="val" id="youtubeKey">...</div></div>
-          <div class="stat"><div class="name">Twitch</div><div class="val" id="twitchKey">...</div></div>
+          <div class="stat"><div class="name">Scanner</div><div class="val" id="scannerKey">...</div></div>
+          <div class="stat"><div class="name">AzuraCast</div><div class="val" id="azuraKey">...</div></div>
         </div>
       </section>
 
       <section class="card">
-        <h2>Audio</h2>
-        <div class="toggle-row">
-          <div><strong>Background MP3</strong><div class="help">Loop selected MP3.</div></div>
-          <button class="toggle-btn" data-toggle="mp3_enabled">...</button>
-        </div>
-        <div class="slider-row">
-          <label for="mp3_volume"><strong>MP3 Volume</strong> <span id="mp3VolumeLabel">35%</span></label>
-          <input id="mp3_volume" type="range" min="0" max="1" step="0.05">
-        </div>
-        <div class="toggle-row">
-          <div><strong>Drone Audio</strong><div class="help">Use drone audio if available.</div></div>
-          <button class="toggle-btn" data-toggle="drone_audio_enabled">...</button>
-        </div>
-        <div class="slider-row">
-          <label for="drone_volume"><strong>Drone Volume</strong> <span id="droneVolumeLabel">100%</span></label>
-          <input id="drone_volume" type="range" min="0" max="1" step="0.05">
-        </div>
+        <h2>Program Audio</h2>
+        <div class="toggle-row"><div><strong>Program Audio</strong><div class="help">Enable selected source below.</div></div><button class="toggle-btn" data-toggle="program_audio_enabled">...</button></div>
+        <div class="form-row"><label>Audio Source</label><select id="program_audio_source"><option value="mp3">Uploaded MP3</option><option value="scanner">Scanner feed from .env</option><option value="azuracast">AzuraCast feed from .env</option><option value="none">Silent</option></select></div>
+        <div class="slider-row"><label for="program_audio_volume"><strong>Program Volume</strong> <span id="programVolumeLabel">35%</span></label><input id="program_audio_volume" type="range" min="0" max="1" step="0.05"></div>
         <div class="form-row"><label>Active MP3</label><select id="active_audio"></select></div>
         <div class="form-row"><label>Upload MP3</label><input id="upload_audio" type="file" accept=".mp3,audio/mpeg"></div>
         <button id="uploadAudioBtn" class="btn">Upload MP3</button>
       </section>
 
       <section class="card">
-        <h2>Weather</h2>
-        <div class="toggle-row">
-          <div><strong>Weather Overlay</strong><div class="help">Shows top bar on final program.</div></div>
-          <button class="toggle-btn" data-toggle="weather_enabled">...</button>
-        </div>
-        <div class="toggle-row">
-          <div><strong>Gusts</strong><div class="help">Useful for drone flying.</div></div>
-          <button class="toggle-btn" data-toggle="show_gusts">...</button>
-        </div>
-        <div class="toggle-row">
-          <div><strong>Visibility</strong><div class="help">Adds VIS value.</div></div>
-          <button class="toggle-btn" data-toggle="show_visibility">...</button>
-        </div>
-        <div class="form-row"><label>Location Label</label><input id="location_label"></div>
-        <div class="form-row"><label>Fallback ZIP</label><input id="fallback_zip"></div>
-        <div class="form-row"><label>Manual ZIP</label><input id="manual_zip" placeholder="optional"></div>
-        <button id="refreshWeatherBtn" class="btn">Refresh Weather</button>
-      </section>
-
-      <section class="card">
-        <h2>BRB / Encode</h2>
+        <h2>BRB</h2>
         <div class="form-row"><label>Active BRB</label><select id="active_brb"></select></div>
-        <div class="toggle-row">
-          <div><strong>BRB MP4 Audio</strong><div class="help">Mute or use the audio inside the BRB video.</div></div>
-          <button class="toggle-btn" data-toggle="brb_audio_enabled">...</button>
-        </div>
-        <div class="slider-row">
-          <label for="brb_volume"><strong>BRB Volume</strong> <span id="brbVolumeLabel">100%</span></label>
-          <input id="brb_volume" type="range" min="0" max="1" step="0.05">
-        </div>
+        <div class="toggle-row"><div><strong>BRB MP4 Audio</strong><div class="help">Use or mute audio inside the BRB video.</div></div><button class="toggle-btn" data-toggle="brb_audio_enabled">...</button></div>
+        <div class="slider-row"><label for="brb_volume"><strong>BRB Volume</strong> <span id="brbVolumeLabel">100%</span></label><input id="brb_volume" type="range" min="0" max="1" step="0.05"></div>
         <div class="form-row"><label>Upload BRB MP4</label><input id="upload_brb" type="file" accept=".mp4,video/mp4"></div>
         <button id="uploadBrbBtn" class="btn">Upload BRB MP4</button>
         <div class="form-row"><label>BRB Delay Seconds</label><input id="brb_delay_seconds" type="number" min="0"></div>
         <div class="form-row"><label>Auto-End Seconds</label><input id="end_timeout_seconds" type="number" min="30"></div>
+      </section>
+
+      <section class="card">
+        <h2>Weather / Encode</h2>
+        <div class="toggle-row"><div><strong>Weather Overlay</strong><div class="help">Shows top bar on final program.</div></div><button class="toggle-btn" data-toggle="weather_enabled">...</button></div>
+        <div class="toggle-row"><div><strong>Gusts</strong><div class="help">Useful for drone flying.</div></div><button class="toggle-btn" data-toggle="show_gusts">...</button></div>
+        <div class="toggle-row"><div><strong>Visibility</strong><div class="help">Adds VIS value.</div></div><button class="toggle-btn" data-toggle="show_visibility">...</button></div>
+        <div class="form-row"><label>Location Label</label><input id="location_label"></div>
+        <div class="form-row"><label>Fallback ZIP</label><input id="fallback_zip"></div>
+        <div class="form-row"><label>Manual ZIP</label><input id="manual_zip" placeholder="optional"></div>
         <div class="form-row"><label>Video Bitrate</label><input id="video_bitrate" placeholder="6000k"></div>
+        <button id="refreshWeatherBtn" class="btn">Refresh Weather</button>
         <button id="saveSettings" class="btn primary">Save Settings</button>
       </section>
     </div>
