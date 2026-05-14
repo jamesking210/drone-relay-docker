@@ -1,34 +1,25 @@
 # Drone Relay Docker
 
-This is my Docker-based drone relay setup for streaming DJI Fly footage through `linuxbox2`, adding a simple drone/weather overlay, handling BRB fallback, and pushing the final stream to YouTube or Twitch when I want.
+Docker-based drone relay for `linuxbox2` at `192.168.1.17`.
 
-This version is cleaned up for testing. The installer removes the old Drone Relay setup, copies a fresh `.env.example` to `.env`, and starts the stack. The admin page defaults to light mode because I may be using it outside in the sun.
+This receives a DJI Fly RTMP stream, builds a final 1080p program feed with weather/clock overlay, supports BRB fallback, and can push to YouTube/Twitch when I turn that on.
 
-It only touches Drone Relay. It does not stop AzuraCast, Portainer, DJMIXHUB, or my other Docker stacks.
-
-Target box:
+V7 focus:
 
 ```text
-linuxbox2
-IP: 192.168.1.17
-Ubuntu Desktop 24.04
-Intel i5-6500
-24GB RAM
-Intel HD Graphics 530
-Docker / Portainer friendly
+Cleaner phone/PC dashboard
+Dry testing without DJI ingest
+Working WebRTC preview if MediaMTX has a program stream
+Scanner audio URL from .env
+AzuraCast audio URL from .env
+Program output URL for VLC/OBS
 ```
 
 ---
 
-## Quick deploy
+## Deploy clean on linuxbox2
 
-Upload this repo to:
-
-```text
-https://github.com/jamesking210/drone-relay-docker
-```
-
-Then run this on `linuxbox2`:
+Upload this repo to GitHub, then run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jamesking210/drone-relay-docker/main/install.sh | bash
@@ -37,41 +28,11 @@ nano .env
 docker compose up -d --build
 ```
 
-That is the whole deploy path.
-
-The installer does this:
-
-```text
-Stops old Drone Relay containers only
-Removes /opt/drone-relay
-Downloads this GitHub repo as a public ZIP
-Copies everything fresh
-Copies .env.example to .env
-Builds and starts Docker Compose
-```
+The installer removes the old Drone Relay setup only. It does not stop AzuraCast, Portainer, DJMIXHUB, or other Docker stacks.
 
 ---
 
-## Open the admin page
-
-```text
-http://192.168.1.17:8589/admin
-```
-
-Default login is set in `.env`:
-
-```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=changeme
-```
-
-Change it later before exposing the admin page outside my LAN.
-
----
-
-## Edit .env
-
-All keys live in `.env`, not the admin page.
+## Add keys and audio links in `.env`
 
 ```bash
 cd /opt/drone-relay
@@ -81,24 +42,25 @@ nano .env
 Important values:
 
 ```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=changeme
-FLASK_SECRET_KEY=make-this-random
-DRONE_API_TOKEN=make-this-random
-
 OPENWEATHER_API_KEY=
-
-YOUTUBE_RTMP_URL=rtmps://a.rtmps.youtube.com/live2
 YOUTUBE_STREAM_KEY=
-
-TWITCH_RTMP_URL=rtmp://live.twitch.tv/app
 TWITCH_STREAM_KEY=
 
-HOME_ASSISTANT_URL=http://192.168.1.3:8123
-HOME_ASSISTANT_TOKEN=
-HA_PHONE_ENTITY=device_tracker.s24
-HA_ZIP_OVERRIDE_ENTITY=input_text.drone_overlay_zip
-HA_NOTIFY_SERVICE=notify.mobile_app_s24
+# Optional audio sources
+SCANNER_STREAM_URL=
+AZURACAST_STREAM_URL=
+```
+
+Scanner example later:
+
+```env
+SCANNER_STREAM_URL=http://192.168.1.7/something.mp3
+```
+
+AzuraCast example later:
+
+```env
+AZURACAST_STREAM_URL=http://192.168.1.17/listen/djmixhub/radio.mp3
 ```
 
 Restart after editing:
@@ -109,283 +71,106 @@ docker compose up -d --build
 
 ---
 
-## Ports
-
-These ports were picked to avoid AzuraCast, DJMIXHUB, my existing overlay container, and Portainer.
+## Admin page
 
 ```text
-8589   Admin page
-19350  RTMP ingest and RTMP program output
-8888   HLS preview/output
-8889   WebRTC preview/output
-9997   MediaMTX API, bound to localhost on the host
+http://192.168.1.17:8589/admin
+```
+
+Default login is in `.env`:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=changeme
 ```
 
 ---
 
-## Ingest and output URLs
+## Dry testing
 
-### DJI Fly ingest
+These do not need DJI Fly ingest and do not push to YouTube/Twitch:
 
-Use this in DJI Fly custom RTMP:
+```text
+Test Pattern
+Test BRB
+Test Audio
+```
+
+Use them first inside the house.
+
+Start with:
+
+```text
+1. Upload/select BRB MP4
+2. Upload/select MP3 or select Scanner/AzuraCast source
+3. Keep Local Test Mode ON
+4. Press Test Pattern
+5. Press Test BRB
+6. Press Test Audio
+```
+
+---
+
+## Preview / VLC / OBS URLs
+
+DJI Fly ingest:
 
 ```text
 rtmp://192.168.1.17:19350/live/drone
 ```
 
-### Raw drone preview
-
-Use this to see what DJI Fly is sending:
+Raw drone preview:
 
 ```text
+http://192.168.1.17:8889/live/drone
 http://192.168.1.17:8888/live/drone/index.m3u8
 ```
 
-### Final program output
-
-This is the finished local program feed.
-
-Use this in VLC or OBS:
-
-```text
-http://192.168.1.17:8888/live/program/index.m3u8
-```
-
-RTMP program output:
-
-```text
-rtmp://192.168.1.17:19350/live/program
-```
-
-WebRTC program output:
+Final program preview/output:
 
 ```text
 http://192.168.1.17:8889/live/program
-```
-
----
-
-## What this does
-
-Basic flow:
-
-```text
-DJI Fly app / phone
-        ↓ RTMP
-linuxbox2
-        ↓
-MediaMTX receives the drone stream
-        ↓
-FFmpeg builds the final program feed
-        ↓
-Local preview + optional YouTube/Twitch output
-```
-
-The final stream can include:
-
-```text
-Drone video
-Top weather bar
-Live clock
-Looping background MP3
-BRB video if the drone feed drops
-```
-
-
----
-
-## Preview note
-
-The admin page uses the MediaMTX WebRTC preview for the browser preview.
-
-That avoids the browser error:
-
-```text
-No video with supported format and MIME type found
-```
-
-For VLC or OBS, use the program output URLs instead:
-
-```text
 http://192.168.1.17:8888/live/program/index.m3u8
 rtmp://192.168.1.17:19350/live/program
 ```
 
----
-
-## Offline testing with no DJI Fly ingest
-
-I can test the whole local output path without sending anything from DJI Fly.
-
-Use these buttons in the admin page:
-
-```text
-Test Pattern
-Test BRB
-Test MP3
-```
-
-These are all local-only. They do not push to YouTube or Twitch.
-
-### Test Pattern
-
-Starts a local 1080p test pattern with the weather overlay and clock.
-
-### Test BRB
-
-Plays the selected uploaded BRB `.mp4` locally to the final program output.
-
-This is how I test:
-
-```text
-BRB video file
-BRB volume / mute
-optional MP3 mix
-final program output URL
-VLC/OBS preview
-```
-
-### Test MP3
-
-Starts a local test pattern and forces the selected MP3 to play, even if the MP3 toggle is off.
-
-This is how I test the uploaded background audio without a drone feed.
-
-Output URL for all offline tests:
+For OBS on `desktop1`, use this first as a Media Source or VLC source:
 
 ```text
 http://192.168.1.17:8888/live/program/index.m3u8
 ```
 
-RTMP output:
+If the embedded admin preview is blank, press a dry-test button first, wait a few seconds, then hit Reload Previews.
+
+---
+
+## Audio source options
+
+The dashboard has one main Program Audio source selector:
 
 ```text
-rtmp://192.168.1.17:19350/live/program
+Uploaded MP3
+Scanner feed from .env
+AzuraCast feed from .env
+Silent
 ```
+
+The URLs stay in `.env`, not the browser.
+
+BRB MP4 audio has its own mute/volume controls.
 
 ---
 
 ## Local Test Mode
 
-Local Test Mode blocks external output.
+Keep this ON while testing.
 
-When Local Test Mode is on:
+When ON:
 
 ```text
 Final program preview works
 YouTube output is blocked
 Twitch output is blocked
-```
-
-This is the safest setting while testing.
-
----
-
-## Disable All
-
-Disable All is the panic switch.
-
-It:
-
-```text
-Stops FFmpeg
-Turns streaming off
-Prevents restart
-Sets mode to DISABLED
-```
-
-Use Enable System to recover.
-
----
-
-## BRB audio
-
-The BRB card has its own audio controls:
-
-```text
-BRB MP4 Audio on/off
-BRB Volume slider
-```
-
-This controls the audio inside the uploaded BRB `.mp4` file.
-
-If I want the BRB video silent, turn **BRB MP4 Audio** off.
-
-If I want the BRB video audio quieter, leave it on and lower the BRB Volume slider.
-
-The regular MP3 controls are separate, so I can use:
-
-```text
-BRB video muted + background MP3 on
-BRB video audio on + MP3 off
-BRB video audio mixed with MP3
-Silent BRB
-```
-
----
-
-## YouTube and Twitch
-
-Stream keys live in `.env`.
-
-```env
-YOUTUBE_STREAM_KEY=
-TWITCH_STREAM_KEY=
-```
-
-The admin page only has simple on/off toggles.
-
-If Local Test Mode is on, nothing external is pushed even if YouTube/Twitch are on.
-
----
-
-## Weather overlay
-
-OpenWeather key lives in `.env`.
-
-```env
-OPENWEATHER_API_KEY=
-```
-
-The admin page shows the current weather line at the top.
-
-The overlay can show:
-
-```text
-Location label
-Temp
-Feels like
-Wind
-Gusts
-Visibility
-Conditions
-Clock
-```
-
-The clock is drawn live by FFmpeg so it does not freeze like a screenshot.
-
----
-
-## Home Assistant later
-
-Home Assistant API token lives in `.env`.
-
-```env
-DRONE_API_TOKEN=
-```
-
-Endpoints for later:
-
-```text
-POST /api/start
-POST /api/stop
-POST /api/brb
-POST /api/live
-POST /api/stay-live
-POST /api/test-pattern
-POST /api/disable-all
-POST /api/enable-system
-GET  /api/status
 ```
 
 ---
@@ -399,47 +184,4 @@ docker compose logs -f drone-relay
 docker compose logs -f mediamtx
 docker compose down
 docker compose up -d --build
-```
-
----
-
-## Test without DJI Fly from command line
-
-The admin Test Pattern button is easier, but this also works:
-
-```bash
-ffmpeg -re \
-  -f lavfi -i testsrc2=size=1280x720:rate=30 \
-  -f lavfi -i sine=frequency=440:sample_rate=44100 \
-  -c:v libx264 -preset veryfast -b:v 3000k \
-  -c:a aac -b:a 128k \
-  -f flv rtmp://127.0.0.1:19350/live/drone
-```
-
-Then press Start Stream in the admin page.
-
----
-
-## Do not commit secrets
-
-Do not commit real values in:
-
-```text
-.env
-config/settings.json
-```
-
-Good files to commit:
-
-```text
-README.md
-install.sh
-docker-compose.yml
-.env.example
-config/settings.example.json
-config/mediamtx.yml
-app/
-media/*/README.txt
-logs/.gitkeep
-overlay/.gitkeep
 ```
